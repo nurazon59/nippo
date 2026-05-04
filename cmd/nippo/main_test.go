@@ -42,7 +42,7 @@ func TestHelp(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 
-	require.True(t, bytes.Contains(out, []byte("Usage: go-template [flags]")))
+	require.True(t, bytes.Contains(out, []byte("Usage: nippo")))
 	require.True(t, bytes.Contains(out, []byte("--config=STRING")))
 	require.True(t, bytes.Contains(out, []byte("--version")))
 }
