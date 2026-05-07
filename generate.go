@@ -22,18 +22,6 @@ func init() {
 	}
 }
 
-type formField struct {
-	name    string
-	message string
-	setter  func(*Report, string)
-}
-
-var formFields = []formField{
-	{name: "Done", message: "やった", setter: func(r *Report, v string) { r.Done = v }},
-	{name: "Todo", message: "やる", setter: func(r *Report, v string) { r.Todo = v }},
-	{name: "Thoughts", message: "所感", setter: func(r *Report, v string) { r.Thoughts = v }},
-}
-
 type editorPrompt struct {
 	message       string
 	defaultValue  string
@@ -191,12 +179,12 @@ func (c *generateCmd) Run() error {
 		}
 	}
 
-	report := &Report{Date: date}
-	if err := c.runForm(report); err != nil {
+	report := &Report{Date: date, Fields: make(map[string]string)}
+	if err := c.runForm(report, cfg.Questions); err != nil {
 		return err
 	}
 
-	content := GenerateMarkdown(report)
+	content := GenerateMarkdown(report, cfg.Questions)
 	fmt.Print(content)
 
 	storage, err := NewStorage(cfg.StorageDir)
@@ -206,10 +194,10 @@ func (c *generateCmd) Run() error {
 	return storage.SaveReport(content, date)
 }
 
-func (c *generateCmd) runForm(report *Report) error {
-	for _, field := range formFields {
+func (c *generateCmd) runForm(report *Report, questions []QuestionConfig) error {
+	for _, q := range questions {
 		prompt := &editorPrompt{
-			message:      field.message,
+			message:      q.Label,
 			defaultValue: "",
 		}
 		value, err := prompt.prompt()
@@ -219,7 +207,7 @@ func (c *generateCmd) runForm(report *Report) error {
 			}
 			return err
 		}
-		field.setter(report, value)
+		report.Fields[q.Key] = value
 	}
 
 	options := []string{"Submit", "Cancel"}

@@ -2,41 +2,20 @@ package main
 
 import (
 	"bytes"
-	"text/template"
+	"fmt"
 	"time"
 )
 
 type Report struct {
-	Date     time.Time
-	Done     string
-	Todo     string
-	Thoughts string
+	Date   time.Time
+	Fields map[string]string
 }
 
-var reportTmpl = template.Must(template.New("report").Parse(`# 日報 {{.Date}}
-
-## やった
-{{.Done}}
-## やる
-{{.Todo}}
-## 所感
-{{.Thoughts}}
-`))
-
-type templateData struct {
-	Date     string
-	Done     string
-	Todo     string
-	Thoughts string
-}
-
-func GenerateMarkdown(r *Report) string {
+func GenerateMarkdown(r *Report, questions []QuestionConfig) string {
 	var buf bytes.Buffer
-	reportTmpl.Execute(&buf, templateData{
-		Date:     r.Date.Format("2006-01-02"),
-		Done:     r.Done,
-		Todo:     r.Todo,
-		Thoughts: r.Thoughts,
-	})
+	buf.WriteString(fmt.Sprintf("# 日報 %s\n\n", r.Date.Format("2006-01-02")))
+	for _, q := range questions {
+		buf.WriteString(fmt.Sprintf("## %s\n%s\n", q.Label, r.Fields[q.Key]))
+	}
 	return buf.String()
 }

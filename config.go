@@ -8,9 +8,16 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+type QuestionConfig struct {
+	Key      string `yaml:"key"`
+	Label    string `yaml:"label"`
+	Required bool   `yaml:"required"`
+}
+
 type Config struct {
-	Version    int    `yaml:"version"`
-	StorageDir string `yaml:"storage_dir"`
+	Version    int              `yaml:"version"`
+	StorageDir string           `yaml:"storage_dir"`
+	Questions  []QuestionConfig `yaml:"questions"`
 }
 
 func Load(path string) (*Config, error) {
@@ -37,5 +44,10 @@ func Load(path string) (*Config, error) {
 func Default() *Config {
 	return &Config{
 		Version: 1,
+		Questions: []QuestionConfig{
+			{Key: "done", Label: "やった", Required: true},
+			{Key: "todo", Label: "やる", Required: true},
+			{Key: "thoughts", Label: "所感", Required: false},
+		},
 	}
 }
