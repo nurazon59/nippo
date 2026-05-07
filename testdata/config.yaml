@@ -1,1 +1,11 @@
 version: 1
+questions:
+  - key: done
+    label: "やった"
+    required: true
+  - key: todo
+    label: "やる"
+    required: true
+  - key: thoughts
+    label: "所感"
+    required: false
