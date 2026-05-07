@@ -8,27 +8,25 @@ import (
 
 type Report struct {
 	Date     time.Time
-	Done     []string
-	Todo     []string
+	Done     string
+	Todo     string
 	Thoughts string
 }
 
 var reportTmpl = template.Must(template.New("report").Parse(`# 日報 {{.Date}}
 
 ## やった
-{{range .Done}}- {{.Description}} ({{printf "%.1f" .Hours}}h)
-{{end}}
+{{.Done}}
 ## やる
-{{range .Todo}}- {{.}}
-{{end}}
+{{.Todo}}
 ## 所感
 {{.Thoughts}}
 `))
 
 type templateData struct {
 	Date     string
-	Done     []string
-	Todo     []string
+	Done     string
+	Todo     string
 	Thoughts string
 }
 
