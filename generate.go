@@ -115,7 +115,7 @@ func (e *editorPrompt) prompt() (string, error) {
 		}
 
 		if b[0] == '\r' || b[0] == '\n' {
-			fmt.Fprint(os.Stderr, "\r\n")
+			fmt.Fprint(os.Stderr, "\r\033[K")
 			return e.defaultValue, nil
 		}
 
