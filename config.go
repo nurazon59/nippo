@@ -1,4 +1,4 @@
-package template
+package main
 
 import (
 	"errors"
@@ -9,7 +9,8 @@ import (
 )
 
 type Config struct {
-	Version int `yaml:"version"`
+	Version    int    `yaml:"version"`
+	StorageDir string `yaml:"storage_dir"`
 }
 
 func Load(path string) (*Config, error) {
