@@ -14,7 +14,7 @@ before:
     - task lint
 
 builds:
-  - main: ./cmd/template/main.go
+  - main: ./cmd/nippo/main.go
     env:
       # Keep the binary portable.
       - CGO_ENABLED=0

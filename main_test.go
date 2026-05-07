@@ -14,7 +14,7 @@ func buildBinary(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
-	bin := filepath.Join(dir, "go-template")
+	bin := filepath.Join(dir, "nippo")
 
 	cmd := exec.Command("go", "build", "-o", bin, ".")
 	cmd.Dir = "."

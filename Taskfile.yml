@@ -14,7 +14,7 @@ tasks:
   vet:
     cmd: go vet ./...
   build:
-    cmd: go build -o bin/go-template ./cmd/template/main.go
+    cmd: go build -o bin/nippo ./cmd/nippo/main.go
   test:
     cmd: go test ./...
   ci:
