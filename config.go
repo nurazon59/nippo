@@ -51,3 +51,11 @@ func Default() *Config {
 		},
 	}
 }
+
+func (c *Config) Save(path string) error {
+	bytes, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, bytes, 0644)
+}

@@ -14,6 +14,7 @@ var CLI struct {
 	Generate generateCmd `cmd:"" default:"1" help:"Generate and display a daily report."`
 	List     listCmd     `cmd:"" help:"List saved reports."`
 	Show     showCmd     `cmd:"" help:"Show report for a specific date."`
+	Edit     editCmd     `cmd:"" help:"Edit report for a specific date."`
 }
 
 func Run() error {
