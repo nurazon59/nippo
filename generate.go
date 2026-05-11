@@ -128,6 +128,9 @@ func (e *editorPrompt) prompt() (string, error) {
 }
 
 func launchEditor(editorCmd, defaultContent string) (string, error) {
+	if editorCmd == "" {
+		editorCmd = defaultEditor
+	}
 	tmp, err := os.CreateTemp("", "nippo-*.md")
 	if err != nil {
 		return "", err
