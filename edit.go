@@ -6,7 +6,7 @@ import (
 )
 
 type editCmd struct {
-	Date       string `arg:"" help:"Target date (YYYY-MM-DD)."`
+	Date       string                                    `arg:"" help:"Target date (YYYY-MM-DD)."`
 	openEditor func(cmd, content string) (string, error) `kong:"-"`
 }
 
