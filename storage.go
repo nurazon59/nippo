@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -44,6 +45,41 @@ func (s *Storage) LoadReport(date time.Time) (string, error) {
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+func normalizeReportDate(date time.Time) time.Time {
+	return time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+func parseReportDate(path string) (time.Time, error) {
+	normalized := filepath.ToSlash(path)
+	return time.Parse("2006/01/02.md", normalized)
+}
+
+func (s *Storage) LoadPreviousReport(date time.Time) (string, error) {
+	reports, err := s.ListReports()
+	if err != nil {
+		return "", err
+	}
+
+	target := normalizeReportDate(date)
+	for _, rel := range reports {
+		reportDate, err := parseReportDate(rel)
+		if err != nil {
+			continue
+		}
+		if !reportDate.Before(target) {
+			continue
+		}
+
+		bytes, err := os.ReadFile(filepath.Join(s.baseDir, "nippo", rel))
+		if err != nil {
+			return "", err
+		}
+		return string(bytes), nil
+	}
+
+	return "", fs.ErrNotExist
 }
 
 func (s *Storage) ListReports() ([]string, error) {

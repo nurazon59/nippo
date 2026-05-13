@@ -9,9 +9,10 @@ import (
 )
 
 type QuestionConfig struct {
-	Key      string `yaml:"key"`
-	Label    string `yaml:"label"`
-	Required bool   `yaml:"required"`
+	Key          string `yaml:"key"`
+	Label        string `yaml:"label"`
+	Required     bool   `yaml:"required"`
+	ReferenceKey string `yaml:"reference_key"`
 }
 
 type Config struct {
