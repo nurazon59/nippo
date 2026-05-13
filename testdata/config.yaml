@@ -6,6 +6,7 @@ questions:
   - key: todo
     label: "やる"
     required: true
+    reference_key: done
   - key: thoughts
     label: "所感"
     required: false

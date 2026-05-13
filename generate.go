@@ -25,6 +25,7 @@ func init() {
 type editorPrompt struct {
 	message       string
 	defaultValue  string
+	editorContent string
 	editorCommand string
 }
 
@@ -88,7 +89,7 @@ func (e *editorPrompt) prompt() (string, error) {
 			term.Restore(fd, oldState)
 			restored = true
 			fmt.Fprint(os.Stderr, "\r\n")
-			result, err := launchEditor(editorCmd, e.defaultValue)
+			result, err := launchEditor(editorCmd, e.editorContent)
 			if err != nil {
 				return "", err
 			}
@@ -182,26 +183,33 @@ func (c *generateCmd) Run() error {
 		}
 	}
 
+	storage, err := NewStorage(cfg.StorageDir)
+	if err != nil {
+		return err
+	}
+
 	report := &Report{Date: date, Fields: make(map[string]string)}
-	if err := c.runForm(report, cfg.Questions); err != nil {
+	if err := c.runForm(storage, date, report, cfg.Questions); err != nil {
 		return err
 	}
 
 	content := GenerateMarkdown(report, cfg.Questions)
 	fmt.Print(content)
 
-	storage, err := NewStorage(cfg.StorageDir)
-	if err != nil {
-		return err
-	}
 	return storage.SaveReport(content, date)
 }
 
-func (c *generateCmd) runForm(report *Report, questions []QuestionConfig) error {
+func (c *generateCmd) runForm(storage *Storage, date time.Time, report *Report, questions []QuestionConfig) error {
+	presets, err := buildReferencePresets(storage, date, questions)
+	if err != nil {
+		return err
+	}
+
 	for _, q := range questions {
 		prompt := &editorPrompt{
-			message:      q.Label,
-			defaultValue: "",
+			message:       q.Label,
+			defaultValue:  "",
+			editorContent: presets[q.Key],
 		}
 		value, err := prompt.prompt()
 		if err != nil {
@@ -220,7 +228,7 @@ func (c *generateCmd) runForm(report *Report, questions []QuestionConfig) error 
 		Options: options,
 		Default: options[0],
 	}
-	err := survey.AskOne(selectPrompt, &next, survey.WithIcons(func(icons *survey.IconSet) {
+	err = survey.AskOne(selectPrompt, &next, survey.WithIcons(func(icons *survey.IconSet) {
 		icons.Question.Text = "?"
 		icons.Question.Format = "green+hb"
 		icons.SelectFocus.Text = ">"

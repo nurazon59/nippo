@@ -42,6 +42,9 @@ func TestConfig(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, test.want, cfg.Version)
+			if name == "config file" {
+				assert.Equal(t, "done", cfg.Questions[1].ReferenceKey)
+			}
 		})
 	}
 }
