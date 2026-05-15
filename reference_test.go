@@ -27,8 +27,8 @@ func TestBuildReferencePresets(t *testing.T) {
 				{Key: "thoughts", Label: "所感"},
 			},
 			setupFunc: func(f *Fixture) {
-				f.SaveReport("2024-06-14", "# 日報 2024-06-14\n\n## やった\n古い作業\n")
-				f.SaveReport("2024-06-15", "# 日報 2024-06-15\n\n## やった\n昨日の作業\n\n続き\n\n## やる\n次の作業\n")
+				f.Save("2024-06-14", "# 日報 2024-06-14\n\n## やった\n古い作業\n")
+				f.Save("2024-06-15", "# 日報 2024-06-15\n\n## やった\n昨日の作業\n\n続き\n\n## やる\n次の作業\n")
 			},
 			wantPresets: map[string]string{
 				"todo": "<!--\n昨日の作業\n\n続き\n-->",
