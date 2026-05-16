@@ -31,10 +31,12 @@ func NewSQLiteBackend(path string) (*SQLiteBackend, error) {
 	}
 
 	if err := db.Ping(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping sqlite: %w", err)
 	}
 
 	if err := initSchema(db); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to init schema: %w", err)
 	}
 
