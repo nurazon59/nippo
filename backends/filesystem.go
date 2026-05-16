@@ -20,6 +20,7 @@ type ReportStorage interface {
 
 type FilesystemBackend struct {
 	baseDir string
+	prefix  string
 }
 
 var _ ReportStorage = (*FilesystemBackend)(nil)
@@ -29,11 +30,22 @@ func NewFilesystemBackend(storageDir string) (*FilesystemBackend, error) {
 	if dir == "" {
 		dir = xdg.DataHome
 	}
-	return &FilesystemBackend{baseDir: dir}, nil
+	return newFilesystemBackend(dir, "nippo"), nil
+}
+
+func newFilesystemBackend(baseDir, prefix string) *FilesystemBackend {
+	return &FilesystemBackend{baseDir: baseDir, prefix: prefix}
+}
+
+func (s *FilesystemBackend) rootDir() string {
+	if s.prefix == "" {
+		return s.baseDir
+	}
+	return filepath.Join(s.baseDir, s.prefix)
 }
 
 func (s *FilesystemBackend) reportDir(date time.Time) string {
-	return filepath.Join(s.baseDir, "nippo", date.Format("2006/01"))
+	return filepath.Join(s.rootDir(), date.Format("2006/01"))
 }
 
 func (s *FilesystemBackend) reportPath(date time.Time) string {
@@ -81,7 +93,7 @@ func (s *FilesystemBackend) LoadPreviousReport(date time.Time) (time.Time, error
 			continue
 		}
 
-		_, err = os.ReadFile(filepath.Join(s.baseDir, "nippo", rel))
+		_, err = os.ReadFile(filepath.Join(s.rootDir(), rel))
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -92,7 +104,7 @@ func (s *FilesystemBackend) LoadPreviousReport(date time.Time) (time.Time, error
 }
 
 func (s *FilesystemBackend) ListReports() ([]string, error) {
-	base := filepath.Join(s.baseDir, "nippo")
+	base := s.rootDir()
 	var reports []string
 
 	err := filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
@@ -106,6 +118,9 @@ func (s *FilesystemBackend) ListReports() ([]string, error) {
 		rel, err := filepath.Rel(base, path)
 		if err != nil {
 			return err
+		}
+		if _, err := parseReportDate(rel); err != nil {
+			return nil
 		}
 		reports = append(reports, rel)
 		return nil
