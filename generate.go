@@ -196,7 +196,7 @@ func (c *generateCmd) Run() error {
 	content := GenerateMarkdown(report, cfg.Questions)
 	fmt.Print(content)
 
-	return storage.SaveReport(content, date)
+	return storage.Save(content, date)
 }
 
 func (c *generateCmd) runForm(storage *Storage, date time.Time, report *Report, questions []QuestionConfig) error {

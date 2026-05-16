@@ -25,10 +25,10 @@ func (f *Fixture) NewStorage() *Storage {
 	return f.storage
 }
 
-func (f *Fixture) SaveReport(date string, content string) {
+func (f *Fixture) Save(date string, content string) {
 	t, err := time.Parse("2006-01-02", date)
 	require.NoError(f.t, err)
-	require.NoError(f.t, f.NewStorage().SaveReport(content, t))
+	require.NoError(f.t, f.NewStorage().Save(content, t))
 }
 
 func (f *Fixture) LoadConfig(path string) *Config {
