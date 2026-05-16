@@ -116,7 +116,7 @@ func (g *GitBackend) commitAndPush(path string, date time.Time) error {
 		if strings.Contains(string(out), "nothing to commit") {
 			return nil
 		}
-		return err
+		return fmt.Errorf("git commit failed: %s: %w", strings.TrimSpace(string(out)), err)
 	}
 
 	if g.remote != "" {
@@ -153,6 +153,9 @@ func (g *GitBackend) ListReports() ([]string, error) {
 		rel, err := filepath.Rel(g.repoDir, path)
 		if err != nil {
 			return err
+		}
+		if _, err := parseReportDate(rel); err != nil {
+			return nil
 		}
 		reports = append(reports, rel)
 		return nil

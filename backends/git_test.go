@@ -81,6 +81,19 @@ func TestGitBackend_ListReports(t *testing.T) {
 	assert.Equal(t, "2024/06/15.md", reports[0])
 }
 
+func TestGitBackend_ListReportsIgnoresNonReportMarkdown(t *testing.T) {
+	backend := setupGitBackend(t)
+
+	err := os.WriteFile(filepath.Join(backend.repoDir, "README.md"), []byte("# readme"), 0644)
+	require.NoError(t, err)
+	err = backend.Save("# report", time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	reports, err := backend.ListReports()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2024/06/15.md"}, reports)
+}
+
 func TestGitBackend_LoadPreviousReport(t *testing.T) {
 	backend := setupGitBackend(t)
 
