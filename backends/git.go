@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -13,8 +12,9 @@ import (
 )
 
 type GitBackend struct {
-	repoDir string
-	remote  string
+	repoDir    string
+	remote     string
+	filesystem *FilesystemBackend
 }
 
 var _ ReportStorage = (*GitBackend)(nil)
@@ -36,7 +36,15 @@ func NewGitBackend(repoURL, remote string) (*GitBackend, error) {
 		remote = ""
 	}
 
-	return &GitBackend{repoDir: dir, remote: remote}, nil
+	return newGitBackend(dir, remote), nil
+}
+
+func newGitBackend(repoDir, remote string) *GitBackend {
+	return &GitBackend{
+		repoDir:    repoDir,
+		remote:     remote,
+		filesystem: newFilesystemBackend(repoDir, ""),
+	}
 }
 
 func cloneOrPullRepo(dir, url string) error {
@@ -74,22 +82,15 @@ func initLocalRepo(dir string) error {
 }
 
 func (g *GitBackend) reportPath(date time.Time) string {
-	return filepath.Join(g.repoDir, date.Format("2006/01"), date.Format("02")+".md")
+	return g.filesystem.reportPath(date)
 }
 
 func (g *GitBackend) Save(content string, date time.Time) error {
-	path := g.reportPath(date)
-	dir := filepath.Dir(path)
-
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := g.filesystem.Save(content, date); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		return err
-	}
-
-	if err := g.commitAndPush(path, date); err != nil {
+	if err := g.commitAndPush(g.reportPath(date), date); err != nil {
 		return fmt.Errorf("failed to commit/push: %w", err)
 	}
 
@@ -132,64 +133,13 @@ func (g *GitBackend) commitAndPush(path string, date time.Time) error {
 }
 
 func (g *GitBackend) LoadReport(date time.Time) (string, error) {
-	bytes, err := os.ReadFile(g.reportPath(date))
-	if err != nil {
-		return "", err
-	}
-	return string(bytes), nil
+	return g.filesystem.LoadReport(date)
 }
 
 func (g *GitBackend) ListReports() ([]string, error) {
-	var reports []string
-
-	err := filepath.Walk(g.repoDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-
-		rel, err := filepath.Rel(g.repoDir, path)
-		if err != nil {
-			return err
-		}
-		if _, err := parseReportDate(rel); err != nil {
-			return nil
-		}
-		reports = append(reports, rel)
-		return nil
-	})
-	if err != nil && !os.IsNotExist(err) {
-		return nil, err
-	}
-
-	sort.Sort(sort.Reverse(sort.StringSlice(reports)))
-	return reports, nil
+	return g.filesystem.ListReports()
 }
 
 func (g *GitBackend) LoadPreviousReport(date time.Time) (time.Time, error) {
-	reports, err := g.ListReports()
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	target := normalizeReportDate(date)
-	for _, rel := range reports {
-		reportDate, err := parseReportDate(rel)
-		if err != nil {
-			continue
-		}
-		if !reportDate.Before(target) {
-			continue
-		}
-
-		_, err = os.ReadFile(filepath.Join(g.repoDir, rel))
-		if err != nil {
-			return time.Time{}, err
-		}
-		return reportDate, nil
-	}
-
-	return time.Time{}, os.ErrNotExist
+	return g.filesystem.LoadPreviousReport(date)
 }

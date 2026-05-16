@@ -1,6 +1,8 @@
 package backends
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -109,6 +111,41 @@ func TestFilesystemBackend_ListReports(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFilesystemBackend_ListReportsIgnoresNonReportMarkdown(t *testing.T) {
+	dir := t.TempDir()
+	backend, err := NewFilesystemBackend(dir)
+	require.NoError(t, err)
+
+	err = os.MkdirAll(filepath.Join(dir, "nippo"), 0755)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "nippo", "README.md"), []byte("# readme"), 0644)
+	require.NoError(t, err)
+	err = backend.Save("# report", time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+
+	reports, err := backend.ListReports()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2024/06/15.md"}, reports)
+}
+
+func TestFilesystemBackend_WithoutPrefix(t *testing.T) {
+	dir := t.TempDir()
+	backend := newFilesystemBackend(dir, "")
+	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	err := backend.Save("# report", date)
+	require.NoError(t, err)
+
+	loaded, err := backend.LoadReport(date)
+	require.NoError(t, err)
+	assert.Equal(t, "# report", loaded)
+	assert.FileExists(t, filepath.Join(dir, "2024", "06", "15.md"))
+
+	reports, err := backend.ListReports()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2024/06/15.md"}, reports)
 }
 
 func TestFilesystemBackend_LoadPreviousReport(t *testing.T) {

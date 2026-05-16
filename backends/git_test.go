@@ -23,7 +23,7 @@ func setupGitBackend(t *testing.T) *GitBackend {
 	cmd = exec.Command("git", "-C", dir, "config", "user.name", "Test User")
 	require.NoError(t, cmd.Run())
 
-	return &GitBackend{repoDir: dir, remote: ""}
+	return newGitBackend(dir, "")
 }
 
 func TestGitBackend_SaveAndLoad(t *testing.T) {
