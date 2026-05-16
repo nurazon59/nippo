@@ -114,40 +114,32 @@ func TestFilesystemBackend_ListReports(t *testing.T) {
 func TestFilesystemBackend_LoadPreviousReport(t *testing.T) {
 	tests := []struct {
 		name      string
-		saveDates map[string]string
+		saveDates []string
 		queryDate time.Time
-		want      string
+		want      time.Time
 		wantErr   bool
 	}{
 		{
-			name: "finds previous report",
-			saveDates: map[string]string{
-				"2024-06-14": "# report 14",
-				"2024-06-15": "# report 15",
-			},
+			name:      "finds previous report",
+			saveDates: []string{"2024-06-14", "2024-06-15"},
 			queryDate: time.Date(2024, 6, 16, 0, 0, 0, 0, time.UTC),
-			want:      "# report 15",
+			want:      time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "query date matches report date",
-			saveDates: map[string]string{
-				"2024-06-14": "# report 14",
-				"2024-06-15": "# report 15",
-			},
+			name:      "query date matches report date",
+			saveDates: []string{"2024-06-14", "2024-06-15"},
 			queryDate: time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC),
-			want:      "# report 14",
+			want:      time.Date(2024, 6, 14, 0, 0, 0, 0, time.UTC),
 		},
 		{
-			name: "no previous report",
-			saveDates: map[string]string{
-				"2024-06-15": "# report 15",
-			},
+			name:      "no previous report",
+			saveDates: []string{"2024-06-15"},
 			queryDate: time.Date(2024, 6, 14, 0, 0, 0, 0, time.UTC),
 			wantErr:   true,
 		},
 		{
 			name:      "empty storage",
-			saveDates: map[string]string{},
+			saveDates: []string{},
 			queryDate: time.Date(2024, 6, 16, 0, 0, 0, 0, time.UTC),
 			wantErr:   true,
 		},
@@ -159,9 +151,9 @@ func TestFilesystemBackend_LoadPreviousReport(t *testing.T) {
 			backend, err := NewFilesystemBackend(dir)
 			require.NoError(t, err)
 
-			for dateStr, content := range tt.saveDates {
+			for _, dateStr := range tt.saveDates {
 				d, _ := time.Parse("2006-01-02", dateStr)
-				err := backend.Save(content, d)
+				err := backend.Save("# report", d)
 				require.NoError(t, err)
 			}
 

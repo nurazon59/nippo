@@ -34,7 +34,11 @@ func (s *Storage) LoadReport(date time.Time) (string, error) {
 }
 
 func (s *Storage) LoadPreviousReport(date time.Time) (string, error) {
-	return s.backend.LoadPreviousReport(date)
+	previousDate, err := s.backend.LoadPreviousReport(date)
+	if err != nil {
+		return "", err
+	}
+	return s.backend.LoadReport(previousDate)
 }
 
 func (s *Storage) ListReports() ([]string, error) {

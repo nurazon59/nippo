@@ -14,7 +14,7 @@ import (
 type ReportStorage interface {
 	Save(content string, date time.Time) error
 	LoadReport(date time.Time) (string, error)
-	LoadPreviousReport(date time.Time) (string, error)
+	LoadPreviousReport(date time.Time) (time.Time, error)
 	ListReports() ([]string, error)
 }
 
@@ -65,10 +65,10 @@ func parseReportDate(path string) (time.Time, error) {
 	return time.Parse("2006/01/02.md", normalized)
 }
 
-func (s *FilesystemBackend) LoadPreviousReport(date time.Time) (string, error) {
+func (s *FilesystemBackend) LoadPreviousReport(date time.Time) (time.Time, error) {
 	reports, err := s.ListReports()
 	if err != nil {
-		return "", err
+		return time.Time{}, err
 	}
 
 	target := normalizeReportDate(date)
@@ -81,14 +81,14 @@ func (s *FilesystemBackend) LoadPreviousReport(date time.Time) (string, error) {
 			continue
 		}
 
-		bytes, err := os.ReadFile(filepath.Join(s.baseDir, "nippo", rel))
+		_, err = os.ReadFile(filepath.Join(s.baseDir, "nippo", rel))
 		if err != nil {
-			return "", err
+			return time.Time{}, err
 		}
-		return string(bytes), nil
+		return reportDate, nil
 	}
 
-	return "", fs.ErrNotExist
+	return time.Time{}, fs.ErrNotExist
 }
 
 func (s *FilesystemBackend) ListReports() ([]string, error) {
