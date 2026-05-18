@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/alecthomas/kong"
@@ -30,8 +29,6 @@ func (c *completionCmd) Run(ctx *kong.Context) error {
 		f := &king.Fish{}
 		f.Completion(node, name)
 		out = f.Out()
-	default:
-		return fmt.Errorf("unsupported shell: %s", c.Shell)
 	}
 
 	_, err := os.Stdout.Write(out)
