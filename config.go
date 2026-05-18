@@ -17,10 +17,10 @@ type QuestionConfig struct {
 }
 
 type Config struct {
-	Version    int                      `yaml:"version"`
-	StorageDir string                   `yaml:"storage_dir"`
-	Storage    *backends.StorageConfig  `yaml:"storage,omitempty"`
-	Questions  []QuestionConfig         `yaml:"questions"`
+	Version    int                     `yaml:"version"`
+	StorageDir string                  `yaml:"storage_dir"`
+	Storage    *backends.StorageConfig `yaml:"storage,omitempty"`
+	Questions  []QuestionConfig        `yaml:"questions"`
 }
 
 func Load(path string) (*Config, error) {
