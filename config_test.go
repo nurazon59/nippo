@@ -50,36 +50,45 @@ func TestConfig(t *testing.T) {
 	}
 }
 
-func TestConfig_LegacyStorageDir(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "legacy.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("version: 1\nstorage_dir: /tmp/old\n"), 0o644))
+func TestConfigStorage(t *testing.T) {
+	tests := map[string]struct {
+		yaml   func(dir string) string
+		verify func(t *testing.T, dir string, cfg *Config)
+	}{
+		"legacy storage_dir": {
+			yaml: func(dir string) string { return "version: 1\nstorage_dir: " + dir + "\n" },
+			verify: func(t *testing.T, dir string, cfg *Config) {
+				assert.Equal(t, dir, cfg.StorageDir)
+				assert.Nil(t, cfg.Storage)
+			},
+		},
+		"new backends list": {
+			yaml: func(dir string) string {
+				return "version: 1\nstorage:\n  backends:\n    - type: filesystem\n      filesystem:\n        dir: " + dir + "\n"
+			},
+			verify: func(t *testing.T, dir string, cfg *Config) {
+				require.NotNil(t, cfg.Storage)
+				require.Len(t, cfg.Storage.Backends, 1)
+				assert.Equal(t, "filesystem", cfg.Storage.Backends[0].Type)
+				require.NotNil(t, cfg.Storage.Backends[0].Filesystem)
+				assert.Equal(t, dir, cfg.Storage.Backends[0].Filesystem.Dir)
+			},
+		},
+	}
 
-	cfg, err := Load(path)
-	require.NoError(t, err)
-	assert.Equal(t, "/tmp/old", cfg.StorageDir)
-	assert.Nil(t, cfg.Storage)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(tt.yaml(dir)), 0o644))
 
-	storage, err := NewStorage(cfg)
-	require.NoError(t, err)
-	defer storage.Close()
-}
+			cfg, err := Load(path)
+			require.NoError(t, err)
+			tt.verify(t, dir, cfg)
 
-func TestConfig_NewStorageBackends(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "new.yaml")
-	yaml := "version: 1\nstorage:\n  backends:\n    - type: filesystem\n      filesystem:\n        dir: " + dir + "\n"
-	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o644))
-
-	cfg, err := Load(path)
-	require.NoError(t, err)
-	require.NotNil(t, cfg.Storage)
-	require.Len(t, cfg.Storage.Backends, 1)
-	assert.Equal(t, "filesystem", cfg.Storage.Backends[0].Type)
-	require.NotNil(t, cfg.Storage.Backends[0].Filesystem)
-	assert.Equal(t, dir, cfg.Storage.Backends[0].Filesystem.Dir)
-
-	storage, err := NewStorage(cfg)
-	require.NoError(t, err)
-	defer storage.Close()
+			storage, err := NewStorage(cfg)
+			require.NoError(t, err)
+			defer storage.Close()
+		})
+	}
 }

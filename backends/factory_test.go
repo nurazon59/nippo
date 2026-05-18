@@ -8,80 +8,117 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuild_NilFallsBackToFilesystem(t *testing.T) {
-	dir := t.TempDir()
-	b, err := Build(nil, dir)
-	require.NoError(t, err)
-	defer b.Close()
+func TestBuild(t *testing.T) {
+	tests := map[string]struct {
+		cfg          func(t *testing.T) *StorageConfig
+		fallbackDir  func(t *testing.T) string
+		wantErr      bool
+		assertResult func(t *testing.T, b ReportStorage)
+	}{
+		"nil cfg falls back to filesystem": {
+			cfg:         func(t *testing.T) *StorageConfig { return nil },
+			fallbackDir: func(t *testing.T) string { return t.TempDir() },
+			assertResult: func(t *testing.T, b ReportStorage) {
+				_, ok := b.(*FilesystemBackend)
+				assert.True(t, ok)
+			},
+		},
+		"empty backends falls back to filesystem": {
+			cfg:         func(t *testing.T) *StorageConfig { return &StorageConfig{} },
+			fallbackDir: func(t *testing.T) string { return t.TempDir() },
+			assertResult: func(t *testing.T, b ReportStorage) {
+				_, ok := b.(*FilesystemBackend)
+				assert.True(t, ok)
+			},
+		},
+		"single filesystem backend": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{
+					{Type: "filesystem", Filesystem: &FilesystemBackendConfig{Dir: t.TempDir()}},
+				}}
+			},
+			fallbackDir: func(t *testing.T) string { return "/should-not-be-used" },
+			assertResult: func(t *testing.T, b ReportStorage) {
+				_, ok := b.(*FilesystemBackend)
+				assert.True(t, ok)
+			},
+		},
+		"single sqlite backend": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{
+					{Type: "sqlite", SQLite: &SQLiteBackendConfig{Path: filepath.Join(t.TempDir(), "r.db")}},
+				}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			assertResult: func(t *testing.T, b ReportStorage) {
+				_, ok := b.(*SQLiteBackend)
+				assert.True(t, ok)
+			},
+		},
+		"two backends wrap in MultiBackend": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{
+					{Type: "filesystem", Filesystem: &FilesystemBackendConfig{Dir: t.TempDir()}},
+					{Type: "sqlite", SQLite: &SQLiteBackendConfig{Path: filepath.Join(t.TempDir(), "r.db")}},
+				}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			assertResult: func(t *testing.T, b ReportStorage) {
+				_, ok := b.(*MultiBackend)
+				assert.True(t, ok)
+			},
+		},
+		"missing type errors": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{{Type: ""}}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			wantErr:     true,
+		},
+		"git without git sub-config errors": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{{Type: "git"}}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			wantErr:     true,
+		},
+		"unknown type errors": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{{Type: "rainbow"}}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			wantErr:     true,
+		},
+		"sqlite without sub-config errors": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{{Type: "sqlite"}}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			wantErr:     true,
+		},
+		"filesystem without dir errors": {
+			cfg: func(t *testing.T) *StorageConfig {
+				return &StorageConfig{Backends: []BackendConfig{
+					{Type: "filesystem", Filesystem: &FilesystemBackendConfig{}},
+				}}
+			},
+			fallbackDir: func(t *testing.T) string { return "" },
+			wantErr:     true,
+		},
+	}
 
-	_, ok := b.(*FilesystemBackend)
-	assert.True(t, ok)
-}
-
-func TestBuild_EmptyBackendsFallsBack(t *testing.T) {
-	dir := t.TempDir()
-	b, err := Build(&StorageConfig{}, dir)
-	require.NoError(t, err)
-	defer b.Close()
-
-	_, ok := b.(*FilesystemBackend)
-	assert.True(t, ok)
-}
-
-func TestBuild_SingleFilesystem(t *testing.T) {
-	dir := t.TempDir()
-	cfg := &StorageConfig{Backends: []BackendConfig{
-		{Type: "filesystem", Filesystem: &FilesystemBackendConfig{Dir: dir}},
-	}}
-	b, err := Build(cfg, "/should-not-be-used")
-	require.NoError(t, err)
-	defer b.Close()
-
-	fb, ok := b.(*FilesystemBackend)
-	require.True(t, ok)
-	assert.Equal(t, dir, fb.baseDir)
-}
-
-func TestBuild_SingleSQLite(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "r.db")
-	cfg := &StorageConfig{Backends: []BackendConfig{
-		{Type: "sqlite", SQLite: &SQLiteBackendConfig{Path: path}},
-	}}
-	b, err := Build(cfg, "")
-	require.NoError(t, err)
-	defer b.Close()
-
-	_, ok := b.(*SQLiteBackend)
-	assert.True(t, ok)
-}
-
-func TestBuild_MultiWraps(t *testing.T) {
-	cfg := &StorageConfig{Backends: []BackendConfig{
-		{Type: "filesystem", Filesystem: &FilesystemBackendConfig{Dir: t.TempDir()}},
-		{Type: "sqlite", SQLite: &SQLiteBackendConfig{Path: filepath.Join(t.TempDir(), "r.db")}},
-	}}
-	b, err := Build(cfg, "")
-	require.NoError(t, err)
-	defer b.Close()
-
-	_, ok := b.(*MultiBackend)
-	assert.True(t, ok)
-}
-
-func TestBuild_MissingTypeErrors(t *testing.T) {
-	cfg := &StorageConfig{Backends: []BackendConfig{{Type: ""}}}
-	_, err := Build(cfg, "")
-	require.Error(t, err)
-}
-
-func TestBuild_GitWithoutGitConfigErrors(t *testing.T) {
-	cfg := &StorageConfig{Backends: []BackendConfig{{Type: "git"}}}
-	_, err := Build(cfg, "")
-	require.Error(t, err)
-}
-
-func TestBuild_UnknownTypeErrors(t *testing.T) {
-	cfg := &StorageConfig{Backends: []BackendConfig{{Type: "rainbow"}}}
-	_, err := Build(cfg, "")
-	require.Error(t, err)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, err := Build(tt.cfg(t), tt.fallbackDir(t))
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			defer b.Close()
+			if tt.assertResult != nil {
+				tt.assertResult(t, b)
+			}
+		})
+	}
 }
