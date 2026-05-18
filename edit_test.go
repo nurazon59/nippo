@@ -44,7 +44,7 @@ func TestEditCmdReportNotFound(t *testing.T) {
 
 func TestEditCmdNoChanges(t *testing.T) {
 	tmp := t.TempDir()
-	storage, err := NewStorage(tmp)
+	storage, err := NewStorage(&Config{StorageDir: tmp})
 	require.NoError(t, err)
 
 	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)

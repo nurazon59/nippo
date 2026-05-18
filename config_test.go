@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
@@ -45,6 +46,49 @@ func TestConfig(t *testing.T) {
 			if name == "config file" {
 				assert.Equal(t, "done", cfg.Questions[1].ReferenceKey)
 			}
+		})
+	}
+}
+
+func TestConfigStorage(t *testing.T) {
+	tests := map[string]struct {
+		yaml   func(dir string) string
+		verify func(t *testing.T, dir string, cfg *Config)
+	}{
+		"legacy storage_dir": {
+			yaml: func(dir string) string { return "version: 1\nstorage_dir: " + dir + "\n" },
+			verify: func(t *testing.T, dir string, cfg *Config) {
+				assert.Equal(t, dir, cfg.StorageDir)
+				assert.Nil(t, cfg.Storage)
+			},
+		},
+		"new backends list": {
+			yaml: func(dir string) string {
+				return "version: 1\nstorage:\n  backends:\n    - type: filesystem\n      filesystem:\n        dir: " + dir + "\n"
+			},
+			verify: func(t *testing.T, dir string, cfg *Config) {
+				require.NotNil(t, cfg.Storage)
+				require.Len(t, cfg.Storage.Backends, 1)
+				assert.Equal(t, "filesystem", cfg.Storage.Backends[0].Type)
+				require.NotNil(t, cfg.Storage.Backends[0].Filesystem)
+				assert.Equal(t, dir, cfg.Storage.Backends[0].Filesystem.Dir)
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(tt.yaml(dir)), 0o644))
+
+			cfg, err := Load(path)
+			require.NoError(t, err)
+			tt.verify(t, dir, cfg)
+
+			storage, err := NewStorage(cfg)
+			require.NoError(t, err)
+			defer storage.Close()
 		})
 	}
 }

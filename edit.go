@@ -21,7 +21,7 @@ func (c *editCmd) Run() error {
 		return fmt.Errorf("invalid date format: %w", err)
 	}
 
-	storage, err := NewStorage(cfg.StorageDir)
+	storage, err := NewStorage(cfg)
 	if err != nil {
 		return err
 	}

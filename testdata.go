@@ -10,19 +10,24 @@ import (
 type Fixture struct {
 	t       *testing.T
 	storage *Storage
+	tmpDir  string
 }
 
 func New(t *testing.T) *Fixture {
-	return &Fixture{t: t}
+	return &Fixture{t: t, tmpDir: t.TempDir()}
 }
 
 func (f *Fixture) NewStorage() *Storage {
 	if f.storage == nil {
-		s, err := NewStorage(f.t.TempDir())
+		s, err := NewStorage(&Config{StorageDir: f.tmpDir})
 		require.NoError(f.t, err)
 		f.storage = s
 	}
 	return f.storage
+}
+
+func (f *Fixture) TmpDir() string {
+	return f.tmpDir
 }
 
 func (f *Fixture) SaveReport(date string, content string) {
