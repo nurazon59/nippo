@@ -15,13 +15,28 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           # tagprが直前リリースタグを判定するため全履歴・タグが必要
           fetch-depth: 0
           persist-credentials: false
 
       - name: Run tagpr
-        uses: Songmu/tagpr@v1
+        id: tagpr
+        uses: Songmu/tagpr@555e72cee68c09d43dc2337dc9ba890955b630da # v1.19.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # GITHUB_TOKENで作成したtag pushは別workflowをtriggerしないため
+      # tagpr.ymlに統合してtag作成時のみgoreleaserを走らせる
+      - name: Setup mise
+        if: steps.tagpr.outputs.tag != ''
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          install: true
+
+      - name: Run release task
+        if: steps.tagpr.outputs.tag != ''
+        run: task release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
