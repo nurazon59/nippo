@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,71 +19,160 @@ func newTestSQLiteBackend(t *testing.T) *SQLiteBackend {
 	return b
 }
 
+type sqliteSave struct {
+	date    string
+	content string
+}
+
 func TestSQLiteBackend_SaveLoad(t *testing.T) {
-	b := newTestSQLiteBackend(t)
-	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+	tests := map[string]struct {
+		saves   []sqliteSave
+		loadAt  string
+		wantErr bool
+		wantIs  error
+		want    string
+	}{
+		"single insert": {
+			saves:  []sqliteSave{{"2024-06-15", "# hello"}},
+			loadAt: "2024-06-15",
+			want:   "# hello",
+		},
+		"upsert keeps latest": {
+			saves: []sqliteSave{
+				{"2024-06-15", "first"},
+				{"2024-06-15", "second"},
+			},
+			loadAt: "2024-06-15",
+			want:   "second",
+		},
+		"miss": {
+			saves:   nil,
+			loadAt:  "2024-06-15",
+			wantErr: true,
+			wantIs:  fs.ErrNotExist,
+		},
+	}
 
-	require.NoError(t, b.Save("# hello", date))
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b := newTestSQLiteBackend(t)
+			for _, s := range tt.saves {
+				require.NoError(t, b.Save(s.content, mustDate(t, s.date)))
+			}
 
-	got, err := b.LoadReport(date)
-	require.NoError(t, err)
-	assert.Equal(t, "# hello", got)
-}
-
-func TestSQLiteBackend_SaveUpsert(t *testing.T) {
-	b := newTestSQLiteBackend(t)
-	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
-
-	require.NoError(t, b.Save("first", date))
-	require.NoError(t, b.Save("second", date))
-
-	got, err := b.LoadReport(date)
-	require.NoError(t, err)
-	assert.Equal(t, "second", got)
-}
-
-func TestSQLiteBackend_LoadNotFound(t *testing.T) {
-	b := newTestSQLiteBackend(t)
-	_, err := b.LoadReport(time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC))
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, fs.ErrNotExist))
+			got, err := b.LoadReport(mustDate(t, tt.loadAt))
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantIs != nil {
+					assert.True(t, errors.Is(err, tt.wantIs))
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestSQLiteBackend_LoadPreviousReport(t *testing.T) {
-	b := newTestSQLiteBackend(t)
-	require.NoError(t, b.Save("old", time.Date(2024, 6, 10, 0, 0, 0, 0, time.UTC)))
-	require.NoError(t, b.Save("newer", time.Date(2024, 6, 14, 0, 0, 0, 0, time.UTC)))
+	tests := map[string]struct {
+		saves   []string
+		target  string
+		wantErr bool
+		wantIs  error
+		want    string
+	}{
+		"picks newest before target": {
+			saves:  []string{"2024-06-10", "2024-06-14"},
+			target: "2024-06-15",
+			want:   "2024-06-14",
+		},
+		"none before target": {
+			saves:   nil,
+			target:  "2024-06-15",
+			wantErr: true,
+			wantIs:  fs.ErrNotExist,
+		},
+	}
 
-	got, err := b.LoadPreviousReport(time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC))
-	require.NoError(t, err)
-	assert.Equal(t, time.Date(2024, 6, 14, 0, 0, 0, 0, time.UTC), got)
-}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b := newTestSQLiteBackend(t)
+			for _, d := range tt.saves {
+				require.NoError(t, b.Save("x", mustDate(t, d)))
+			}
 
-func TestSQLiteBackend_LoadPreviousReportNotFound(t *testing.T) {
-	b := newTestSQLiteBackend(t)
-	_, err := b.LoadPreviousReport(time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC))
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, fs.ErrNotExist))
+			got, err := b.LoadPreviousReport(mustDate(t, tt.target))
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantIs != nil {
+					assert.True(t, errors.Is(err, tt.wantIs))
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, mustDate(t, tt.want), got)
+		})
+	}
 }
 
 func TestSQLiteBackend_ListReports(t *testing.T) {
-	b := newTestSQLiteBackend(t)
-	for _, d := range []string{"2024-06-14", "2024-06-15", "2024-05-30"} {
-		date, err := time.Parse("2006-01-02", d)
-		require.NoError(t, err)
-		require.NoError(t, b.Save("x", date))
+	tests := map[string]struct {
+		saves []string
+		want  []string
+	}{
+		"sorted desc": {
+			saves: []string{"2024-06-14", "2024-06-15", "2024-05-30"},
+			want: []string{
+				filepath.Join("2024", "06", "15.md"),
+				filepath.Join("2024", "06", "14.md"),
+				filepath.Join("2024", "05", "30.md"),
+			},
+		},
+		"empty": {
+			saves: nil,
+			want:  nil,
+		},
 	}
 
-	got, err := b.ListReports()
-	require.NoError(t, err)
-	assert.Equal(t, []string{
-		filepath.Join("2024", "06", "15.md"),
-		filepath.Join("2024", "06", "14.md"),
-		filepath.Join("2024", "05", "30.md"),
-	}, got)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b := newTestSQLiteBackend(t)
+			for _, d := range tt.saves {
+				require.NoError(t, b.Save("x", mustDate(t, d)))
+			}
+
+			got, err := b.ListReports()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
-func TestSQLiteBackend_NewRequiresPath(t *testing.T) {
-	_, err := NewSQLiteBackend("")
-	require.Error(t, err)
+func TestSQLiteBackend_NewValidation(t *testing.T) {
+	tests := map[string]struct {
+		path    func(t *testing.T) string
+		wantErr bool
+	}{
+		"empty path errors": {
+			path:    func(t *testing.T) string { return "" },
+			wantErr: true,
+		},
+		"valid path ok": {
+			path:    func(t *testing.T) string { return filepath.Join(t.TempDir(), "ok.db") },
+			wantErr: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, err := NewSQLiteBackend(tt.path(t))
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			defer b.Close()
+		})
+	}
 }
