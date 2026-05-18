@@ -45,7 +45,15 @@ func extractReportSections(content string) map[string]string {
 }
 
 func buildReferencePresets(storage *Storage, date time.Time, questions []QuestionConfig) (map[string]string, error) {
-	previous, err := storage.LoadPreviousReport(date)
+	prevDate, err := storage.LoadPreviousReport(date)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return map[string]string{}, nil
+		}
+		return nil, err
+	}
+
+	previous, err := storage.LoadReport(prevDate)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]string{}, nil

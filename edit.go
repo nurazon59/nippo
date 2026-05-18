@@ -25,6 +25,7 @@ func (c *editCmd) Run() error {
 	if err != nil {
 		return err
 	}
+	defer storage.Close()
 
 	existing, err := storage.LoadReport(date)
 	if err != nil {

@@ -187,6 +187,7 @@ func (c *generateCmd) Run() error {
 	if err != nil {
 		return err
 	}
+	defer storage.Close()
 
 	report := &Report{Date: date, Fields: make(map[string]string)}
 	if err := c.runForm(storage, date, report, cfg.Questions); err != nil {

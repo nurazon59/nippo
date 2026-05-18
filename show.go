@@ -24,6 +24,8 @@ func (c *showCmd) Run() error {
 	if err != nil {
 		return err
 	}
+	defer storage.Close()
+
 	content, err := storage.LoadReport(date)
 	if err != nil {
 		return err
