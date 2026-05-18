@@ -14,6 +14,8 @@ func (c *listCmd) Run() error {
 	if err != nil {
 		return err
 	}
+	defer storage.Close()
+
 	reports, err := storage.ListReports()
 	if err != nil {
 		return err
