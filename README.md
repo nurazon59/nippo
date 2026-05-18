@@ -25,6 +25,24 @@ version: 1
 
 If the file is missing, the CLI starts with defaults.
 
+### シェル補完
+
+`nippo completion <shell>` で bash/zsh/fish 用の補完スクリプトを生成する。
+
+```bash
+# bash (現在のシェルで読み込む)
+source <(nippo completion bash)
+
+# bash (永続化)
+nippo completion bash > /etc/bash_completion.d/nippo
+
+# zsh (fpath 上のディレクトリに配置)
+nippo completion zsh > "${fpath[1]}/_nippo"
+
+# fish
+nippo completion fish > ~/.config/fish/completions/nippo.fish
+```
+
 ## Development
 
 ```bash
