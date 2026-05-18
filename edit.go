@@ -46,7 +46,7 @@ func (c *editCmd) Run() error {
 		return nil
 	}
 
-	if err := storage.Save(edited, date); err != nil {
+	if err := storage.SaveReport(edited, date); err != nil {
 		return err
 	}
 

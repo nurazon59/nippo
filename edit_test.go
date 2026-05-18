@@ -49,7 +49,7 @@ func TestEditCmdNoChanges(t *testing.T) {
 
 	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
 	content := "# test report"
-	err = storage.Save(content, date)
+	err = storage.SaveReport(content, date)
 	require.NoError(t, err)
 
 	cfgPath := tmp + "/config.yaml"
