@@ -17,6 +17,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          # tagprが直前リリースタグを判定するため全履歴・タグが必要
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Run tagpr
