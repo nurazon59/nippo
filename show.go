@@ -20,7 +20,7 @@ func (c *showCmd) Run() error {
 		return err
 	}
 
-	storage, err := NewStorage(cfg.StorageDir)
+	storage, err := NewStorage(cfg)
 	if err != nil {
 		return err
 	}

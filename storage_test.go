@@ -20,7 +20,7 @@ func TestSaveReport(t *testing.T) {
 	err := storage.SaveReport(content, date)
 	require.NoError(t, err)
 
-	path := filepath.Join(storage.baseDir, "nippo", "2024", "06", "15.md")
+	path := filepath.Join(f.TmpDir(), "nippo", "2024", "06", "15.md")
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, content, string(got))

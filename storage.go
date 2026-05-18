@@ -8,19 +8,19 @@ import (
 )
 
 type Storage struct {
-	baseDir string
 	backend backends.ReportStorage
 }
 
-func NewStorage(storageDir string) (*Storage, error) {
-	dir := storageDir
-	if dir == "" {
-		dir = xdg.DataHome
+func NewStorage(cfg *Config) (*Storage, error) {
+	fallback := cfg.StorageDir
+	if fallback == "" {
+		fallback = xdg.DataHome
 	}
-	return &Storage{
-		baseDir: dir,
-		backend: backends.NewFilesystemBackend(dir),
-	}, nil
+	backend, err := backends.Build(cfg.Storage, fallback)
+	if err != nil {
+		return nil, err
+	}
+	return &Storage{backend: backend}, nil
 }
 
 func (s *Storage) SaveReport(content string, date time.Time) error {

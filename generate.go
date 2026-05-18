@@ -183,7 +183,7 @@ func (c *generateCmd) Run() error {
 		}
 	}
 
-	storage, err := NewStorage(cfg.StorageDir)
+	storage, err := NewStorage(cfg)
 	if err != nil {
 		return err
 	}

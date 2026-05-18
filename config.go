@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/goccy/go-yaml"
+	"github.com/nurazon59/nippo/backends"
 )
 
 type QuestionConfig struct {
@@ -16,9 +17,10 @@ type QuestionConfig struct {
 }
 
 type Config struct {
-	Version    int              `yaml:"version"`
-	StorageDir string           `yaml:"storage_dir"`
-	Questions  []QuestionConfig `yaml:"questions"`
+	Version    int                      `yaml:"version"`
+	StorageDir string                   `yaml:"storage_dir"`
+	Storage    *backends.StorageConfig  `yaml:"storage,omitempty"`
+	Questions  []QuestionConfig         `yaml:"questions"`
 }
 
 func Load(path string) (*Config, error) {
