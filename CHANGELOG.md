@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.2.0](https://github.com/nurazon59/nippo/compare/v0.1.0...v0.2.0) - 2026-05-20
+- refactor(storage): backends パッケージ抽出と ReportStorage IF 化 (PR-A) by @nurazon59 in https://github.com/nurazon59/nippo/pull/36
+- feat(backends): git/sqlite/multi バックエンド追加 (PR-B) by @nurazon59 in https://github.com/nurazon59/nippo/pull/37
+- feat(backends): git/sqlite/multi バックエンド追加 by @nurazon59 in https://github.com/nurazon59/nippo/pull/41
+- feat(storage): factory による backend 構築と設定配線 (PR-C) by @nurazon59 in https://github.com/nurazon59/nippo/pull/38
+- feat(latest): 最新の日報を表示する latest コマンドを追加 by @nurazon59 in https://github.com/nurazon59/nippo/pull/42
+- feat(hooks): pre-generate hook 機構を追加 (GitHub / カレンダー連携) by @nurazon59 in https://github.com/nurazon59/nippo/pull/44
+
 ## [v0.1.0](https://github.com/nurazon59/nippo/compare/v0.0.1...v0.1.0) - 2026-05-18
 - feat: add edit command to update existing reports by @nurazon59 in https://github.com/nurazon59/nippo/pull/11
 - feat: add reference presets and test fixtures by @nurazon59 in https://github.com/nurazon59/nippo/pull/15
