@@ -2,8 +2,10 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/nurazon59/nippo/backends"
@@ -16,11 +18,19 @@ type QuestionConfig struct {
 	ReferenceKey string `yaml:"reference_key"`
 }
 
+type HookConfig struct {
+	Name    string   `yaml:"name"`
+	Command string   `yaml:"command"`
+	Keys    []string `yaml:"keys"`
+	Timeout string   `yaml:"timeout,omitempty"`
+}
+
 type Config struct {
 	Version    int                     `yaml:"version"`
 	StorageDir string                  `yaml:"storage_dir"`
 	Storage    *backends.StorageConfig `yaml:"storage,omitempty"`
 	Questions  []QuestionConfig        `yaml:"questions"`
+	Hooks      []HookConfig            `yaml:"hooks,omitempty"`
 }
 
 func Load(path string) (*Config, error) {
@@ -40,6 +50,15 @@ func Load(path string) (*Config, error) {
 	err = yaml.Unmarshal(bytes, cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	for i, h := range cfg.Hooks {
+		if h.Timeout == "" {
+			continue
+		}
+		if _, err := time.ParseDuration(h.Timeout); err != nil {
+			return nil, fmt.Errorf("hooks[%d] (%s): invalid timeout %q: %w", i, h.Name, h.Timeout, err)
+		}
 	}
 	return cfg, nil
 }
