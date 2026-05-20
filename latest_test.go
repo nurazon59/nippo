@@ -31,40 +31,72 @@ func captureStdout(t *testing.T, fn func()) string {
 	return string(buf)
 }
 
-func TestLatestCmdNoReports(t *testing.T) {
-	tmp := t.TempDir()
+func TestLatestCmd(t *testing.T) {
+	type save struct {
+		date    string
+		content string
+	}
 
-	cfgPath := tmp + "/config.yaml"
-	cfg := &Config{Version: 1, StorageDir: tmp}
-	require.NoError(t, cfg.Save(cfgPath))
+	tests := map[string]struct {
+		saves      []save
+		wantErr    bool
+		wantStdout string
+	}{
+		"no reports errors": {
+			wantErr: true,
+		},
+		"single entry": {
+			saves:      []save{{"2024-06-15", "# only"}},
+			wantStdout: "# only",
+		},
+		"picks newest among many": {
+			saves: []save{
+				{"2024-06-10", "# older"},
+				{"2024-06-15", "# newest"},
+				{"2024-06-12", "# middle"},
+			},
+			wantStdout: "# newest",
+		},
+	}
 
-	oldConfig := CLI.Config
-	CLI.Config = cfgPath
-	defer func() { CLI.Config = oldConfig }()
+	parseDate := func(t *testing.T, s string) time.Time {
+		t.Helper()
+		d, err := time.Parse("2006-01-02", s)
+		require.NoError(t, err)
+		return d
+	}
 
-	err := (&latestCmd{}).Run()
-	require.Error(t, err)
-}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tmp := t.TempDir()
 
-func TestLatestCmdPicksNewest(t *testing.T) {
-	tmp := t.TempDir()
+			if len(tt.saves) > 0 {
+				storage, err := NewStorage(&Config{StorageDir: tmp})
+				require.NoError(t, err)
+				for _, s := range tt.saves {
+					require.NoError(t, storage.SaveReport(s.content, parseDate(t, s.date)))
+				}
+			}
 
-	storage, err := NewStorage(&Config{StorageDir: tmp})
-	require.NoError(t, err)
-	require.NoError(t, storage.SaveReport("# older", time.Date(2024, 6, 10, 0, 0, 0, 0, time.UTC)))
-	require.NoError(t, storage.SaveReport("# newest", time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)))
-	require.NoError(t, storage.SaveReport("# middle", time.Date(2024, 6, 12, 0, 0, 0, 0, time.UTC)))
+			cfgPath := tmp + "/config.yaml"
+			cfg := &Config{Version: 1, StorageDir: tmp}
+			require.NoError(t, cfg.Save(cfgPath))
 
-	cfgPath := tmp + "/config.yaml"
-	cfg := &Config{Version: 1, StorageDir: tmp}
-	require.NoError(t, cfg.Save(cfgPath))
+			oldConfig := CLI.Config
+			CLI.Config = cfgPath
+			defer func() { CLI.Config = oldConfig }()
 
-	oldConfig := CLI.Config
-	CLI.Config = cfgPath
-	defer func() { CLI.Config = oldConfig }()
+			var runErr error
+			out := captureStdout(t, func() {
+				runErr = (&latestCmd{}).Run()
+			})
 
-	out := captureStdout(t, func() {
-		require.NoError(t, (&latestCmd{}).Run())
-	})
-	assert.Equal(t, "# newest", out)
+			if tt.wantErr {
+				require.Error(t, runErr)
+				return
+			}
+			require.NoError(t, runErr)
+			assert.Equal(t, tt.wantStdout, out)
+		})
+	}
 }
