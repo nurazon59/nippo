@@ -71,6 +71,27 @@ func (m *mockBackend) LoadPreviousReport(date time.Time) (time.Time, error) {
 	return time.Time{}, fs.ErrNotExist
 }
 
+func (m *mockBackend) LoadLatestReport() (time.Time, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.loadErr != nil {
+		return time.Time{}, m.loadErr
+	}
+	var keys []string
+	for k := range m.data {
+		keys = append(keys, k)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+	for _, k := range keys {
+		t, err := time.Parse("2006-01-02", k)
+		if err != nil {
+			continue
+		}
+		return t, nil
+	}
+	return time.Time{}, fs.ErrNotExist
+}
+
 func (m *mockBackend) ListReports() ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

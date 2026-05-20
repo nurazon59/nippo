@@ -125,6 +125,10 @@ func (b *GitBackend) LoadPreviousReport(date time.Time) (time.Time, error) {
 	return b.fs.LoadPreviousReport(date)
 }
 
+func (b *GitBackend) LoadLatestReport() (time.Time, error) {
+	return b.fs.LoadLatestReport()
+}
+
 func (b *GitBackend) ListReports() ([]string, error) {
 	return b.fs.ListReports()
 }

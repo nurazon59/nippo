@@ -89,6 +89,20 @@ func (b *SQLiteBackend) LoadPreviousReport(date time.Time) (time.Time, error) {
 	return time.Parse("2006-01-02", key)
 }
 
+func (b *SQLiteBackend) LoadLatestReport() (time.Time, error) {
+	var key string
+	err := b.db.QueryRow(
+		`SELECT date FROM reports ORDER BY date DESC LIMIT 1`,
+	).Scan(&key)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, fs.ErrNotExist
+		}
+		return time.Time{}, err
+	}
+	return time.Parse("2006-01-02", key)
+}
+
 func (b *SQLiteBackend) ListReports() ([]string, error) {
 	rows, err := b.db.Query(`SELECT date FROM reports ORDER BY date DESC`)
 	if err != nil {

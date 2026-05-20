@@ -14,6 +14,7 @@ var CLI struct {
 	Generate   generateCmd   `cmd:"" default:"1" help:"Generate and display a daily report."`
 	List       listCmd       `cmd:"" help:"List saved reports."`
 	Show       showCmd       `cmd:"" help:"Show report for a specific date."`
+	Latest     latestCmd     `cmd:"" help:"Show the most recently dated report."`
 	Edit       editCmd       `cmd:"" help:"Edit report for a specific date."`
 	Completion completionCmd `cmd:"" help:"Generate shell completion script."`
 }

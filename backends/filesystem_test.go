@@ -166,6 +166,49 @@ func TestFilesystemBackend_LoadPreviousReport(t *testing.T) {
 	}
 }
 
+func TestFilesystemBackend_LoadLatestReport(t *testing.T) {
+	tests := map[string]struct {
+		saves   []string
+		wantErr bool
+		wantIs  error
+		want    string
+	}{
+		"picks newest": {
+			saves: []string{"2024-06-10", "2024-06-14", "2024-05-30"},
+			want:  "2024-06-14",
+		},
+		"single entry": {
+			saves: []string{"2024-06-15"},
+			want:  "2024-06-15",
+		},
+		"empty": {
+			saves:   nil,
+			wantErr: true,
+			wantIs:  fs.ErrNotExist,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b := NewFilesystemBackend(t.TempDir())
+			for _, d := range tt.saves {
+				require.NoError(t, b.Save("# r", mustDate(t, d)))
+			}
+
+			got, err := b.LoadLatestReport()
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantIs != nil {
+					assert.True(t, errors.Is(err, tt.wantIs))
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, mustDate(t, tt.want), got)
+		})
+	}
+}
+
 func TestFilesystemBackend_Close(t *testing.T) {
 	b := NewFilesystemBackend(t.TempDir())
 	require.NoError(t, b.Close())
