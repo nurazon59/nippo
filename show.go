@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"time"
 )
 
@@ -28,6 +30,9 @@ func (c *showCmd) Run() error {
 
 	content, err := storage.LoadReport(date)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("no report found for %s", c.Date)
+		}
 		return err
 	}
 

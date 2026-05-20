@@ -1,6 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+)
 
 type latestCmd struct{}
 
@@ -18,6 +22,9 @@ func (c *latestCmd) Run() error {
 
 	date, err := storage.LoadLatestReport()
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return errors.New("no saved reports found")
+		}
 		return err
 	}
 
