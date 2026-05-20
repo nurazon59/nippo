@@ -25,6 +25,36 @@ version: 1
 
 If the file is missing, the CLI starts with defaults.
 
+### Hooks（外部コマンド連携）
+
+`hooks:` セクションを追加すると、`nippo generate` のエディタ起動時に任意の外部コマンドの実行結果を `<!-- ... -->` 形式で参考情報として埋め込める。認証は外部 CLI（`gh`, `gcalcli`, `icalBuddy` 等）に委譲する設計のため、nippo 自体は token/OAuth を保持しない。
+
+- `command` は `sh -c` で実行されるので、`|` や `$()` をそのまま使える
+- 環境変数 `NIPPO_DATE=YYYY-MM-DD` が hook プロセスに渡される（対象日に応じてクエリを組み立てられる）
+- `keys` に列挙した質問 key のエディタ画面に stdout が挿入される
+- `timeout` は Go の `time.ParseDuration` 形式（デフォルト `30s`）。タイムアウト・非 0 終了・コマンド未存在の場合は警告を stderr に出して generate 自体は続行する
+- hook は並列実行される
+
+#### 設定例
+
+```yaml
+hooks:
+  - name: github-opened
+    command: "gh search prs --author=@me --created=$NIPPO_DATE --json title,url,state -L 20 | jq -r '.[] | \"- [opened] \(.state) \(.title) \(.url)\"'"
+    keys: [done]
+  - name: github-reviewed
+    command: "gh search prs --reviewed-by=@me --updated=$NIPPO_DATE --json title,url,state -L 20 | jq -r '.[] | \"- [reviewed] \(.state) \(.title) \(.url)\"'"
+    keys: [done]
+  - name: github-commented
+    command: "gh search prs --commenter=@me --updated=$NIPPO_DATE --json title,url,state -L 20 | jq -r '.[] | \"- [commented] \(.state) \(.title) \(.url)\"'"
+    keys: [done]
+  - name: calendar
+    command: "icalBuddy -ea -nrd -df '' -tf '%H:%M' eventsToday"
+    keys: [done]
+```
+
+`$NIPPO_DATE` は hook 実行時に対象日（`YYYY-MM-DD`）が渡される。上記は当日 open / reviewed / commented した PR を 3 つの hook で取得し、エディタの「やった」欄に挿入する例。
+
 ### シェル補完
 
 `nippo completion <shell>` で bash/zsh/fish 用の補完スクリプトを生成する。

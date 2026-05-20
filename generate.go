@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -190,7 +191,7 @@ func (c *generateCmd) Run() error {
 	defer storage.Close()
 
 	report := &Report{Date: date, Fields: make(map[string]string)}
-	if err := c.runForm(storage, date, report, cfg.Questions); err != nil {
+	if err := c.runForm(storage, cfg, date, report); err != nil {
 		return err
 	}
 
@@ -200,13 +201,16 @@ func (c *generateCmd) Run() error {
 	return storage.SaveReport(content, date)
 }
 
-func (c *generateCmd) runForm(storage *Storage, date time.Time, report *Report, questions []QuestionConfig) error {
-	presets, err := buildReferencePresets(storage, date, questions)
+func (c *generateCmd) runForm(storage *Storage, cfg *Config, date time.Time, report *Report) error {
+	presets, err := buildReferencePresets(storage, date, cfg.Questions)
 	if err != nil {
 		return err
 	}
 
-	for _, q := range questions {
+	hookOut := RunHooks(context.Background(), cfg.Hooks, date)
+	presets = mergePresets(presets, hookOut)
+
+	for _, q := range cfg.Questions {
 		prompt := &editorPrompt{
 			message:       q.Label,
 			defaultValue:  "",

@@ -16,11 +16,19 @@ type QuestionConfig struct {
 	ReferenceKey string `yaml:"reference_key"`
 }
 
+type HookConfig struct {
+	Name    string   `yaml:"name"`
+	Command string   `yaml:"command"`
+	Keys    []string `yaml:"keys"`
+	Timeout string   `yaml:"timeout,omitempty"`
+}
+
 type Config struct {
 	Version    int                     `yaml:"version"`
 	StorageDir string                  `yaml:"storage_dir"`
 	Storage    *backends.StorageConfig `yaml:"storage,omitempty"`
 	Questions  []QuestionConfig        `yaml:"questions"`
+	Hooks      []HookConfig            `yaml:"hooks,omitempty"`
 }
 
 func Load(path string) (*Config, error) {
