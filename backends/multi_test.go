@@ -149,6 +149,48 @@ func TestMultiBackend_LoadPreviousReport(t *testing.T) {
 	}
 }
 
+func TestMultiBackend_LoadLatestReport(t *testing.T) {
+	tests := map[string]struct {
+		datesA  []string
+		datesB  []string
+		want    string
+		wantErr bool
+	}{
+		"picks latest across backends": {
+			datesA: []string{"2024-06-10"},
+			datesB: []string{"2024-06-14"},
+			want:   "2024-06-14",
+		},
+		"empty everywhere errors": {
+			datesA:  nil,
+			datesB:  nil,
+			wantErr: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			a := newMockBackend()
+			b := newMockBackend()
+			for _, d := range tt.datesA {
+				require.NoError(t, a.Save("x", mustDate(t, d)))
+			}
+			for _, d := range tt.datesB {
+				require.NoError(t, b.Save("x", mustDate(t, d)))
+			}
+
+			m := NewMultiBackend([]NamedBackend{{Name: "a", Backend: a}, {Name: "b", Backend: b}})
+			got, err := m.LoadLatestReport()
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, mustDate(t, tt.want), got)
+		})
+	}
+}
+
 func TestMultiBackend_ListReports(t *testing.T) {
 	tests := map[string]struct {
 		datesA  []string

@@ -13,6 +13,7 @@ type ReportStorage interface {
 	Save(content string, date time.Time) error
 	LoadReport(date time.Time) (string, error)
 	LoadPreviousReport(date time.Time) (time.Time, error)
+	LoadLatestReport() (time.Time, error)
 	ListReports() ([]string, error)
 	Close() error
 }
@@ -71,6 +72,23 @@ func (b *FilesystemBackend) LoadPreviousReport(date time.Time) (time.Time, error
 			continue
 		}
 		if !reportDate.Before(target) {
+			continue
+		}
+		return reportDate, nil
+	}
+
+	return time.Time{}, fs.ErrNotExist
+}
+
+func (b *FilesystemBackend) LoadLatestReport() (time.Time, error) {
+	reports, err := b.ListReports()
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	for _, rel := range reports {
+		reportDate, err := parseReportDate(rel)
+		if err != nil {
 			continue
 		}
 		return reportDate, nil

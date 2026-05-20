@@ -99,6 +99,37 @@ func (m *MultiBackend) LoadPreviousReport(date time.Time) (time.Time, error) {
 	return time.Time{}, lastErr
 }
 
+func (m *MultiBackend) LoadLatestReport() (time.Time, error) {
+	var (
+		best       time.Time
+		found      bool
+		lastErr    error
+		allMissing = true
+	)
+	for _, nb := range m.backends {
+		t, err := nb.Backend.LoadLatestReport()
+		if err == nil {
+			if !found || t.After(best) {
+				best = t
+				found = true
+			}
+			allMissing = false
+			continue
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			allMissing = false
+			lastErr = err
+		}
+	}
+	if found {
+		return best, nil
+	}
+	if allMissing {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return time.Time{}, lastErr
+}
+
 func (m *MultiBackend) ListReports() ([]string, error) {
 	seen := make(map[string]struct{})
 	var lastErr error
