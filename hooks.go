@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -69,7 +70,7 @@ func runHook(ctx context.Context, h HookConfig, date time.Time) (string, error) 
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	stdout, err := cmd.Output()
-	if hookCtx.Err() == context.DeadlineExceeded {
+	if errors.Is(hookCtx.Err(), context.DeadlineExceeded) {
 		return "", fmt.Errorf("timeout after %s", timeout)
 	}
 	if err != nil {

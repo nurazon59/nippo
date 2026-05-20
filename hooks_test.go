@@ -56,13 +56,13 @@ func TestRunHooks(t *testing.T) {
 
 	t.Run("hooks run in parallel", func(t *testing.T) {
 		hooks := []HookConfig{
-			{Name: "a", Command: "sleep 0.3 && echo a", Keys: []string{"done"}},
-			{Name: "b", Command: "sleep 0.3 && echo b", Keys: []string{"todo"}},
+			{Name: "a", Command: "sleep 1 && echo a", Keys: []string{"done"}},
+			{Name: "b", Command: "sleep 1 && echo b", Keys: []string{"todo"}},
 		}
 		start := time.Now()
 		out := RunHooks(context.Background(), hooks, date)
 		elapsed := time.Since(start)
-		assert.Less(t, elapsed, 500*time.Millisecond)
+		assert.Less(t, elapsed, 1800*time.Millisecond)
 		assert.Equal(t, "<!--\na\n-->", out["done"])
 		assert.Equal(t, "<!--\nb\n-->", out["todo"])
 	})
@@ -77,15 +77,13 @@ func TestRunHooks(t *testing.T) {
 		assert.Equal(t, "<!--\n2024-06-16\n-->", out["done"])
 	})
 
-	t.Run("multiple hooks targeting same key are concatenated", func(t *testing.T) {
+	t.Run("multiple hooks targeting same key are concatenated in declaration order", func(t *testing.T) {
 		hooks := []HookConfig{
 			{Name: "first", Command: "echo one", Keys: []string{"done"}},
 			{Name: "second", Command: "echo two", Keys: []string{"done"}},
 		}
 		out := RunHooks(context.Background(), hooks, date)
-		assert.Contains(t, out["done"], "<!--\none\n-->")
-		assert.Contains(t, out["done"], "<!--\ntwo\n-->")
-		assert.Contains(t, out["done"], "\n\n")
+		assert.Equal(t, "<!--\none\n-->\n\n<!--\ntwo\n-->", out["done"])
 	})
 }
 
@@ -112,5 +110,21 @@ func TestMergePresets(t *testing.T) {
 			map[string]string{},
 		)
 		assert.Equal(t, "<!--\nprev\n-->", merged["done"])
+	})
+
+	t.Run("nil maps are handled", func(t *testing.T) {
+		merged := mergePresets(nil, nil)
+		assert.Empty(t, merged)
+
+		merged = mergePresets(nil, map[string]string{"done": "<!--\nhook\n-->"})
+		assert.Equal(t, "<!--\nhook\n-->", merged["done"])
+	})
+
+	t.Run("empty preset value is replaced by hook", func(t *testing.T) {
+		merged := mergePresets(
+			map[string]string{"done": ""},
+			map[string]string{"done": "<!--\nhook\n-->"},
+		)
+		assert.Equal(t, "<!--\nhook\n-->", merged["done"])
 	})
 }

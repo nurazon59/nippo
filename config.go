@@ -2,8 +2,10 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/nurazon59/nippo/backends"
@@ -48,6 +50,15 @@ func Load(path string) (*Config, error) {
 	err = yaml.Unmarshal(bytes, cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	for i, h := range cfg.Hooks {
+		if h.Timeout == "" {
+			continue
+		}
+		if _, err := time.ParseDuration(h.Timeout); err != nil {
+			return nil, fmt.Errorf("hooks[%d] (%s): invalid timeout %q: %w", i, h.Name, h.Timeout, err)
+		}
 	}
 	return cfg, nil
 }

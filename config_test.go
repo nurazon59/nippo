@@ -50,6 +50,44 @@ func TestConfig(t *testing.T) {
 	}
 }
 
+func TestConfigHookTimeoutValidation(t *testing.T) {
+	tests := map[string]struct {
+		yaml    string
+		wantErr bool
+	}{
+		"valid timeout": {
+			yaml:    "version: 1\nhooks:\n  - name: a\n    command: \"echo ok\"\n    keys: [done]\n    timeout: 30s\n",
+			wantErr: false,
+		},
+		"omitted timeout": {
+			yaml:    "version: 1\nhooks:\n  - name: a\n    command: \"echo ok\"\n    keys: [done]\n",
+			wantErr: false,
+		},
+		"invalid timeout rejected at load": {
+			yaml:    "version: 1\nhooks:\n  - name: a\n    command: \"echo ok\"\n    keys: [done]\n    timeout: \"not-a-duration\"\n",
+			wantErr: true,
+		},
+		"numeric without unit rejected": {
+			yaml:    "version: 1\nhooks:\n  - name: a\n    command: \"echo ok\"\n    keys: [done]\n    timeout: \"30\"\n",
+			wantErr: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(tt.yaml), 0o644))
+			_, err := Load(path)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestConfigStorage(t *testing.T) {
 	tests := map[string]struct {
 		yaml   func(dir string) string
