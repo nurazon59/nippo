@@ -44,6 +44,17 @@ func extractReportSections(content string) map[string]string {
 	return sections
 }
 
+func buildSameDayPreset(answered map[string]string, q QuestionConfig) string {
+	if q.SameDayReferenceKey == "" {
+		return ""
+	}
+	content, ok := answered[q.SameDayReferenceKey]
+	if !ok {
+		return ""
+	}
+	return commentOutPreset(content)
+}
+
 func buildReferencePresets(storage *Storage, date time.Time, questions []QuestionConfig) (map[string]string, error) {
 	prevDate, err := storage.LoadPreviousReport(date)
 	if err != nil {

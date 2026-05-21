@@ -50,6 +50,20 @@ func TestConfig(t *testing.T) {
 	}
 }
 
+func TestConfigSameDayReferenceKey(t *testing.T) {
+	yamlBody := "version: 1\nquestions:\n  - key: done\n    label: \"やった\"\n    required: true\n  - key: todo\n    label: \"やる\"\n    required: true\n    same_day_reference_key: done\n"
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(yamlBody), 0o644))
+
+	cfg, err := Load(path)
+	require.NoError(t, err)
+	require.Len(t, cfg.Questions, 2)
+	assert.Equal(t, "", cfg.Questions[0].SameDayReferenceKey)
+	assert.Equal(t, "done", cfg.Questions[1].SameDayReferenceKey)
+}
+
 func TestConfigHookTimeoutValidation(t *testing.T) {
 	tests := map[string]struct {
 		yaml    string
