@@ -12,6 +12,9 @@ func commentOutPreset(content string) string {
 	if strings.TrimSpace(content) == "" {
 		return ""
 	}
+	// 内側の `-->` で外側コメントが閉じてしまう (CommonMark の HTML block type 2)
+	// のを防ぐため、終端マーカーのみ escape する
+	content = strings.ReplaceAll(content, "-->", "--&gt;")
 	return "<!--\n" + content + "\n-->"
 }
 
@@ -42,6 +45,17 @@ func extractReportSections(content string) map[string]string {
 
 	flush()
 	return sections
+}
+
+func buildSameDayPreset(answered map[string]string, q QuestionConfig) string {
+	if q.SameDayReferenceKey == "" {
+		return ""
+	}
+	content, ok := answered[q.SameDayReferenceKey]
+	if !ok {
+		return ""
+	}
+	return commentOutPreset(content)
 }
 
 func buildReferencePresets(storage *Storage, date time.Time, questions []QuestionConfig) (map[string]string, error) {

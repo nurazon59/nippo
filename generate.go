@@ -211,10 +211,18 @@ func (c *generateCmd) runForm(storage *Storage, cfg *Config, date time.Time, rep
 	presets = mergePresets(presets, hookOut)
 
 	for _, q := range cfg.Questions {
+		editorContent := presets[q.Key]
+		if sameDay := buildSameDayPreset(report.Fields, q); sameDay != "" {
+			if editorContent != "" {
+				editorContent = editorContent + "\n\n" + sameDay
+			} else {
+				editorContent = sameDay
+			}
+		}
 		prompt := &editorPrompt{
 			message:       q.Label,
 			defaultValue:  "",
-			editorContent: presets[q.Key],
+			editorContent: editorContent,
 		}
 		value, err := prompt.prompt()
 		if err != nil {

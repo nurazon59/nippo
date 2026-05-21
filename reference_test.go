@@ -9,8 +9,62 @@ import (
 )
 
 func TestCommentOutPreset(t *testing.T) {
-	assert.Equal(t, "", commentOutPreset(""))
-	assert.Equal(t, "<!--\nhello\nworld\n-->", commentOutPreset("hello\nworld"))
+	tests := map[string]struct {
+		content string
+		want    string
+	}{
+		"empty":             {content: "", want: ""},
+		"plain multiline":   {content: "hello\nworld", want: "<!--\nhello\nworld\n-->"},
+		"nested terminator": {content: "前段\n<!--\nhook\n-->", want: "<!--\n前段\n<!--\nhook\n--&gt;\n-->"},
+		"trailing newline":  {content: "x\n", want: "<!--\nx\n-->"},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tt.want, commentOutPreset(tt.content))
+		})
+	}
+}
+
+func TestBuildSameDayPreset(t *testing.T) {
+	tests := map[string]struct {
+		question QuestionConfig
+		answered map[string]string
+		want     string
+	}{
+		"no reference key": {
+			question: QuestionConfig{Key: "todo"},
+			answered: map[string]string{"done": "なにかやった"},
+			want:     "",
+		},
+		"missing answer": {
+			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
+			answered: map[string]string{},
+			want:     "",
+		},
+		"empty answer": {
+			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
+			answered: map[string]string{"done": ""},
+			want:     "",
+		},
+		"plain answer": {
+			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
+			answered: map[string]string{"done": "昨日の続きをやった"},
+			want:     "<!--\n昨日の続きをやった\n-->",
+		},
+		"answer with nested hook comment": {
+			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
+			answered: map[string]string{"done": "前段\n<!--\nhook\n-->"},
+			want:     "<!--\n前段\n<!--\nhook\n--&gt;\n-->",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := buildSameDayPreset(tt.answered, tt.question)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestBuildReferencePresets(t *testing.T) {

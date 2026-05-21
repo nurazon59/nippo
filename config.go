@@ -12,10 +12,11 @@ import (
 )
 
 type QuestionConfig struct {
-	Key          string `yaml:"key"`
-	Label        string `yaml:"label"`
-	Required     bool   `yaml:"required"`
-	ReferenceKey string `yaml:"reference_key"`
+	Key                 string `yaml:"key"`
+	Label               string `yaml:"label"`
+	Required            bool   `yaml:"required"`
+	ReferenceKey        string `yaml:"reference_key"`
+	SameDayReferenceKey string `yaml:"same_day_reference_key"`
 }
 
 type HookConfig struct {
