@@ -6,21 +6,37 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/nurazon59/nippo/report"
 )
 
+// mockBackend は backends パッケージ内テスト専用のスタブ。
+// legacy (Save/LoadReport) と v1 (SaveReport/LoadReportStruct/WriteSidecar) を
+// 同じ instance で観測したいので、保存先 map を 3 つに分けている。
 type mockBackend struct {
-	mu        sync.Mutex
-	data      map[string]string
-	saveErr   error
-	loadErr   error
-	listErr   error
-	closeErr  error
-	closed    bool
-	saveCalls int
+	mu              sync.Mutex
+	data            map[string]string
+	structData      map[string]*report.Report
+	sidecars        map[string]map[string][]byte
+	saveErr         error
+	loadErr         error
+	listErr         error
+	saveReportErr   error
+	loadStructErr   error
+	sidecarErr      error
+	closeErr        error
+	closed          bool
+	saveCalls       int
+	saveReportCalls int
+	sidecarCalls    int
 }
 
 func newMockBackend() *mockBackend {
-	return &mockBackend{data: make(map[string]string)}
+	return &mockBackend{
+		data:       make(map[string]string),
+		structData: make(map[string]*report.Report),
+		sidecars:   make(map[string]map[string][]byte),
+	}
 }
 
 func (m *mockBackend) Save(content string, date time.Time) error {
@@ -112,6 +128,53 @@ func (m *mockBackend) Close() error {
 	defer m.mu.Unlock()
 	m.closed = true
 	return m.closeErr
+}
+
+func (m *mockBackend) SaveReport(r *report.Report) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.saveReportCalls++
+	if m.saveReportErr != nil {
+		return m.saveReportErr
+	}
+	// deep copy までは要らないが、外部からの mutation を防ぐため value copy で保持する。
+	cp := *r
+	m.structData[normalizeReportDate(r.Date).Format("2006-01-02")] = &cp
+	return nil
+}
+
+func (m *mockBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.loadStructErr != nil {
+		return nil, m.loadStructErr
+	}
+	v, ok := m.structData[normalizeReportDate(date).Format("2006-01-02")]
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+	cp := *v
+	return &cp, nil
+}
+
+func (m *mockBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sidecarCalls++
+	if m.sidecarErr != nil {
+		return m.sidecarErr
+	}
+	key := normalizeReportDate(date).Format("2006-01-02")
+	bucket, ok := m.sidecars[key]
+	if !ok {
+		bucket = make(map[string][]byte)
+		m.sidecars[key] = bucket
+	}
+	// 呼び出し側が再利用するスライスを後から書き換える可能性を排除するため copy する。
+	buf := make([]byte, len(content))
+	copy(buf, content)
+	bucket[kind] = buf
+	return nil
 }
 
 var errMockBoom = errors.New("mock boom")
