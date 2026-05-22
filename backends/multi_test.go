@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 func TestMultiBackend_Save(t *testing.T) {
@@ -224,6 +226,161 @@ func TestMultiBackend_ListReports(t *testing.T) {
 			got, err := m.ListReports()
 			require.NoError(t, err)
 			assert.Len(t, got, tt.wantLen)
+		})
+	}
+}
+
+func TestMultiBackend_SaveReport(t *testing.T) {
+	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		setupB        func(b *mockBackend)
+		wantSucceeded []string
+		wantFailed    []string
+	}{
+		"all success": {
+			setupB:        func(b *mockBackend) {},
+			wantSucceeded: nil,
+			wantFailed:    nil,
+		},
+		"partial failure surfaces PartialSaveError": {
+			setupB:        func(b *mockBackend) { b.saveReportErr = errMockBoom },
+			wantSucceeded: []string{"a"},
+			wantFailed:    []string{"b"},
+		},
+	}
+
+	r := &report.Report{
+		SchemaVersion: report.SupportedSchemaVersion,
+		Date:          date,
+		Fields:        map[string]report.FieldValue{},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			a := newMockBackend()
+			b := newMockBackend()
+			tt.setupB(b)
+
+			m := NewMultiBackend([]NamedBackend{{Name: "a", Backend: a}, {Name: "b", Backend: b}})
+			err := m.SaveReport(r)
+
+			if tt.wantFailed == nil {
+				require.NoError(t, err)
+				assert.Equal(t, 1, a.saveReportCalls)
+				assert.Equal(t, 1, b.saveReportCalls)
+				return
+			}
+			var pe *PartialSaveError
+			require.True(t, errors.As(err, &pe))
+			assert.Equal(t, tt.wantSucceeded, pe.Succeeded)
+			gotFailed := make([]string, 0, len(pe.Failed))
+			for _, f := range pe.Failed {
+				gotFailed = append(gotFailed, f.Name)
+			}
+			assert.Equal(t, tt.wantFailed, gotFailed)
+		})
+	}
+}
+
+func TestMultiBackend_LoadReportStruct(t *testing.T) {
+	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+	r := &report.Report{
+		SchemaVersion: report.SupportedSchemaVersion,
+		Date:          date,
+		Fields:        map[string]report.FieldValue{"summary": {Type: report.FieldTypeText, Body: "x"}},
+	}
+
+	tests := map[string]struct {
+		setupA  func(b *mockBackend)
+		setupB  func(b *mockBackend)
+		wantErr bool
+		wantIs  error
+		want    string
+	}{
+		"first hit wins": {
+			setupA: func(b *mockBackend) { require.NoError(t, b.SaveReport(r)) },
+			setupB: func(b *mockBackend) {},
+			want:   "x",
+		},
+		"fallback to second": {
+			setupA: func(b *mockBackend) {},
+			setupB: func(b *mockBackend) { require.NoError(t, b.SaveReport(r)) },
+			want:   "x",
+		},
+		"all miss returns fs.ErrNotExist": {
+			setupA:  func(b *mockBackend) {},
+			setupB:  func(b *mockBackend) {},
+			wantErr: true,
+			wantIs:  fs.ErrNotExist,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			a := newMockBackend()
+			b := newMockBackend()
+			tt.setupA(a)
+			tt.setupB(b)
+
+			m := NewMultiBackend([]NamedBackend{{Name: "a", Backend: a}, {Name: "b", Backend: b}})
+			got, err := m.LoadReportStruct(date)
+			if tt.wantErr {
+				require.Error(t, err)
+				if tt.wantIs != nil {
+					assert.True(t, errors.Is(err, tt.wantIs))
+				}
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got.Fields["summary"].Body)
+		})
+	}
+}
+
+func TestMultiBackend_WriteSidecar(t *testing.T) {
+	date := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	tests := map[string]struct {
+		setupB        func(b *mockBackend)
+		wantSucceeded []string
+		wantFailed    []string
+	}{
+		"all success fans out to every backend": {
+			setupB:        func(b *mockBackend) {},
+			wantSucceeded: nil,
+			wantFailed:    nil,
+		},
+		"failure on one backend yields PartialSaveError": {
+			setupB:        func(b *mockBackend) { b.sidecarErr = errMockBoom },
+			wantSucceeded: []string{"a"},
+			wantFailed:    []string{"b"},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			a := newMockBackend()
+			b := newMockBackend()
+			tt.setupB(b)
+
+			m := NewMultiBackend([]NamedBackend{{Name: "a", Backend: a}, {Name: "b", Backend: b}})
+			err := m.WriteSidecar(date, ".md", []byte("# md"))
+
+			if tt.wantFailed == nil {
+				require.NoError(t, err)
+				assert.Equal(t, 1, a.sidecarCalls)
+				assert.Equal(t, 1, b.sidecarCalls)
+				return
+			}
+			var pe *PartialSaveError
+			require.True(t, errors.As(err, &pe))
+			assert.Equal(t, tt.wantSucceeded, pe.Succeeded)
+			gotFailed := make([]string, 0, len(pe.Failed))
+			for _, f := range pe.Failed {
+				gotFailed = append(gotFailed, f.Name)
+			}
+			assert.Equal(t, tt.wantFailed, gotFailed)
 		})
 	}
 }
