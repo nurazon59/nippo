@@ -340,3 +340,101 @@ func TestFilesystemBackend_LegacyAndV1Coexist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, report.SupportedSchemaVersion, gotR.SchemaVersion)
 }
+
+// Step 4: SaveReport (.yaml) と WriteSidecar (.md など) を同 date で並べたときの
+// 配置・冪等性・kind 拡張性・親ディレクトリ自動作成をまとめて検証する。
+// Step 3 で実装した sibling 配置の意図を破壊的に壊さないためのカバレッジ強化。
+func TestFilesystemBackend_SidecarCoexistence(t *testing.T) {
+	tests := map[string]struct {
+		// writes は WriteSidecar の呼び出し列。末尾の write が「上書き後」の内容になる。
+		writes []struct {
+			kind    string
+			content string
+		}
+		date           string
+		wantYAMLRel    string
+		wantSidecarRel string
+		wantSidecar    string
+		// wantListed は ListReports が返す .md ベースの相対パス。.md を含まない kind では nil。
+		wantListed []string
+	}{
+		"md sidecar lives next to yaml and shows up in ListReports": {
+			date: "2024-06-15",
+			writes: []struct {
+				kind    string
+				content string
+			}{
+				{kind: ".md", content: "# rendered nippo"},
+			},
+			wantYAMLRel:    filepath.Join("2024", "06", "15.yaml"),
+			wantSidecarRel: filepath.Join("2024", "06", "15.md"),
+			wantSidecar:    "# rendered nippo",
+			wantListed:     []string{filepath.Join("2024", "06", "15.md")},
+		},
+		"second write overwrites first (idempotent)": {
+			date: "2024-06-15",
+			writes: []struct {
+				kind    string
+				content string
+			}{
+				{kind: ".md", content: "# first"},
+				{kind: ".md", content: "# second"},
+			},
+			wantYAMLRel:    filepath.Join("2024", "06", "15.yaml"),
+			wantSidecarRel: filepath.Join("2024", "06", "15.md"),
+			wantSidecar:    "# second",
+			wantListed:     []string{filepath.Join("2024", "06", "15.md")},
+		},
+		"json sidecar (non-md kind) coexists without polluting ListReports": {
+			date: "2024-07-01",
+			writes: []struct {
+				kind    string
+				content string
+			}{
+				{kind: ".json", content: `{"ok":true}`},
+			},
+			wantYAMLRel:    filepath.Join("2024", "07", "01.yaml"),
+			wantSidecarRel: filepath.Join("2024", "07", "01.json"),
+			wantSidecar:    `{"ok":true}`,
+			// .md ベースの listing なので .json sidecar は出てこない。
+			wantListed: nil,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// 親ディレクトリを自前で作らず、SaveReport / WriteSidecar 側の MkdirAll に任せる。
+			dir := t.TempDir()
+			b := NewFilesystemBackend(dir)
+			date := mustDate(t, tt.date)
+
+			require.NoError(t, b.SaveReport(sampleReport(t, tt.date)))
+
+			for _, w := range tt.writes {
+				require.NoError(t, b.WriteSidecar(date, w.kind, []byte(w.content)))
+			}
+
+			// .yaml と sidecar が同一ディレクトリに並んでいることを絶対パスで確認する。
+			yamlAbs := filepath.Join(dir, "nippo", tt.wantYAMLRel)
+			sidecarAbs := filepath.Join(dir, "nippo", tt.wantSidecarRel)
+			assert.Equal(t, filepath.Dir(yamlAbs), filepath.Dir(sidecarAbs), "yaml と sidecar が別ディレクトリに分散している")
+
+			_, err := os.Stat(yamlAbs)
+			require.NoError(t, err, "yaml が想定パスに存在しない: %s", yamlAbs)
+
+			gotSidecar, err := os.ReadFile(sidecarAbs)
+			require.NoError(t, err, "sidecar が想定パスに存在しない: %s", sidecarAbs)
+			assert.Equal(t, tt.wantSidecar, string(gotSidecar))
+
+			// canonical YAML の読み戻し経路が sidecar 書き込みで壊れていないこと。
+			gotR, err := b.LoadReportStruct(date)
+			require.NoError(t, err)
+			assert.Equal(t, report.SupportedSchemaVersion, gotR.SchemaVersion)
+
+			// .md ベースの ListReports が sidecar 共存下でも期待通り振る舞うこと。
+			gotList, err := b.ListReports()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantListed, gotList)
+		})
+	}
+}
