@@ -10,7 +10,7 @@ import (
 )
 
 func TestMarkdown(t *testing.T) {
-	// 全ケースで共通の日付を使い、ヘッダの fmt は固定の前提で検証する。
+	// 共通の日付を使う（ヘッダフォーマット固定）
 	date := time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC)
 
 	tests := map[string]struct {
@@ -215,7 +215,7 @@ func TestMarkdown(t *testing.T) {
 				"## 所感\n良い一日だった\n",
 		},
 		"unknown type renders empty section": {
-			// Step 1 で reject 済みのはずだが、defensive にセクションだけ出して落ちないこと。
+			// unknown type に対してヘッダのみ生成し落ちないことを確認する。
 			report: &report.Report{
 				SchemaVersion: report.SupportedSchemaVersion,
 				Date:          date,
