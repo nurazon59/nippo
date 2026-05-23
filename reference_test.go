@@ -30,33 +30,44 @@ func TestCommentOutPreset(t *testing.T) {
 func TestBuildSameDayPreset(t *testing.T) {
 	tests := map[string]struct {
 		question QuestionConfig
-		answered map[string]string
+		answered map[string]report.FieldValue
 		want     string
 	}{
 		"no reference key": {
 			question: QuestionConfig{Key: "todo"},
-			answered: map[string]string{"done": "なにかやった"},
+			answered: map[string]report.FieldValue{"done": {Type: report.FieldTypeText, Body: "なにかやった"}},
 			want:     "",
 		},
 		"missing answer": {
 			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
-			answered: map[string]string{},
+			answered: map[string]report.FieldValue{},
 			want:     "",
 		},
 		"empty answer": {
 			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
-			answered: map[string]string{"done": ""},
+			answered: map[string]report.FieldValue{"done": {Type: report.FieldTypeText, Body: ""}},
 			want:     "",
 		},
 		"plain answer": {
 			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
-			answered: map[string]string{"done": "昨日の続きをやった"},
+			answered: map[string]report.FieldValue{"done": {Type: report.FieldTypeText, Body: "昨日の続きをやった"}},
 			want:     "<!--\n昨日の続きをやった\n-->",
 		},
 		"answer with nested hook comment": {
 			question: QuestionConfig{Key: "todo", SameDayReferenceKey: "done"},
-			answered: map[string]string{"done": "前段\n<!--\nhook\n-->"},
+			answered: map[string]report.FieldValue{"done": {Type: report.FieldTypeText, Body: "前段\n<!--\nhook\n-->"}},
 			want:     "<!--\n前段\n<!--\nhook\n--&gt;\n-->",
+		},
+		"task_list answer は bullet 形式で引き継ぐ": {
+			question: QuestionConfig{Key: "thoughts", SameDayReferenceKey: "done"},
+			answered: map[string]report.FieldValue{"done": {
+				Type: report.FieldTypeTaskList,
+				Tasks: []report.Task{
+					{Title: "設計レビュー", Time: "30m", Outcome: "done"},
+					{Title: "実装"},
+				},
+			}},
+			want: "<!--\n- 設計レビュー (30m) done\n- 実装\n-->",
 		},
 	}
 

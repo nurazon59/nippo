@@ -11,10 +11,13 @@ import (
 	"github.com/nurazon59/nippo/backends"
 )
 
+// QuestionConfig の Type は "text" (空ならデフォルト) または "task_list"。
+// 不明値は config load 時に reject (silent fallback 禁止)。
 type QuestionConfig struct {
 	Key                 string `yaml:"key"`
 	Label               string `yaml:"label"`
 	Required            bool   `yaml:"required"`
+	Type                string `yaml:"type,omitempty"`
 	ReferenceKey        string `yaml:"reference_key"`
 	SameDayReferenceKey string `yaml:"same_day_reference_key"`
 }
@@ -59,6 +62,14 @@ func Load(path string) (*Config, error) {
 		}
 		if _, err := time.ParseDuration(h.Timeout); err != nil {
 			return nil, fmt.Errorf("hooks[%d] (%s): invalid timeout %q: %w", i, h.Name, h.Timeout, err)
+		}
+	}
+
+	for i, q := range cfg.Questions {
+		switch q.Type {
+		case "", "text", "task_list":
+		default:
+			return nil, fmt.Errorf("questions[%d] (%s): unsupported type %q (want \"text\" or \"task_list\")", i, q.Key, q.Type)
 		}
 	}
 	return cfg, nil

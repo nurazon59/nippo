@@ -20,45 +20,17 @@ func commentOutPreset(content string) string {
 	return "<!--\n" + content + "\n-->"
 }
 
-func buildSameDayPreset(answered map[string]string, q QuestionConfig) string {
+// buildSameDayPreset は同日中の他フィールドを reference するための preset を返す。
+// task_list 型 field も fieldBodyAsText 経由で bullet 化されるため、text/task_list が混在しても扱える。
+func buildSameDayPreset(answered map[string]report.FieldValue, q QuestionConfig) string {
 	if q.SameDayReferenceKey == "" {
 		return ""
 	}
-	content, ok := answered[q.SameDayReferenceKey]
+	v, ok := answered[q.SameDayReferenceKey]
 	if !ok {
 		return ""
 	}
-	return commentOutPreset(content)
-}
-
-// fieldBodyAsText は preset 用に FieldValue を平文化する。
-// reference は「前日内容を当日エディタの初期値として渡す」用途のため、
-// task_list は - title (time) outcome / thoughts の bullet 形式に変換する。
-func fieldBodyAsText(v report.FieldValue) string {
-	switch v.Type {
-	case report.FieldTypeText:
-		return v.Body
-	case report.FieldTypeTaskList:
-		if len(v.Tasks) == 0 {
-			return ""
-		}
-		var lines []string
-		for _, t := range v.Tasks {
-			head := "- " + t.Title
-			if t.Time != "" {
-				head += " (" + t.Time + ")"
-			}
-			if t.Outcome != "" {
-				head += " " + t.Outcome
-			}
-			lines = append(lines, head)
-			if t.Thoughts != "" {
-				lines = append(lines, "  "+t.Thoughts)
-			}
-		}
-		return strings.Join(lines, "\n")
-	}
-	return ""
+	return commentOutPreset(fieldBodyAsText(v))
 }
 
 func buildReferencePresets(storage *Storage, date time.Time, questions []QuestionConfig) (map[string]string, error) {

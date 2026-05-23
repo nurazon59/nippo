@@ -62,3 +62,18 @@ func (f *Fixture) LoadConfig(path string) *Config {
 func (f *Fixture) DefaultConfig() *Config {
 	return Default()
 }
+
+// newTextReport は「全フィールド text 型」のテスト用 Report を組み立てる。
+// 本番コードは generate.go の runForm が直接 Report を構築するため、
+// この helper はテストで text/task_list 以外の組み合わせを書く際の冗長さを避ける目的でのみ存在する。
+func newTextReport(date time.Time, fields map[string]string) *report.Report {
+	r := &report.Report{
+		SchemaVersion: report.SupportedSchemaVersion,
+		Date:          date,
+		Fields:        make(map[string]report.FieldValue, len(fields)),
+	}
+	for k, v := range fields {
+		r.Fields[k] = report.FieldValue{Type: report.FieldTypeText, Body: v}
+	}
+	return r
+}
