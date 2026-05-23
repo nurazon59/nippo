@@ -217,7 +217,6 @@ func (c *generateCmd) Run() error {
 }
 
 // runForm はフォームを回し、回答を r.Fields に直接詰める。
-// Step 7 で QuestionConfig.Type に応じて text / task_list 分岐をディスパッチする。
 // 受け取った r は呼び出し元で SaveReportStruct / Markdown 描画に使い回す前提。
 func (c *generateCmd) runForm(storage *Storage, cfg *Config, r *report.Report) error {
 	presets, err := buildReferencePresets(storage, r.Date, cfg.Questions)
