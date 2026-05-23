@@ -1,13 +1,19 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"time"
+
+	"github.com/nurazon59/nippo/renderer"
 )
 
+// editCmd は指定 date の .yaml を再ロードし runForm を再実行する「フォーム再開モデル」。
+// 旧 vim 直接編集 (.md を上書き) は canonical (.yaml) と乖離するため Step 8 で廃止。
+// 各質問は既存値を default に流し込んだ状態で再表示され、enter で既存値維持・(e) でエディタ再起動になる。
 type editCmd struct {
-	Date       string                                    `arg:"" help:"Target date (YYYY-MM-DD)."`
-	openEditor func(cmd, content string) (string, error) `kong:"-"`
+	Date string `arg:"" help:"Target date (YYYY-MM-DD)."`
 }
 
 func (c *editCmd) Run() error {
@@ -27,29 +33,27 @@ func (c *editCmd) Run() error {
 	}
 	defer storage.Close()
 
-	// TODO(Step 8): edit はフォーム再開モデルに置き換えるまで legacy .md パスを編集する。
-	// .yaml と .md の同期は Step 8 で本対応。
-	existing, err := storage.LoadReport(date)
+	// 既存 .yaml が無ければ新規 Report として扱い、generate と同等のフォームに合流させる。
+	// LoadReportStruct のその他エラー (parse 失敗等) は silent fallback せず即返す。
+	existing, err := storage.LoadReportStruct(date)
 	if err != nil {
-		return fmt.Errorf("report not found for %s: %w", c.Date, err)
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		existing = nil
 	}
 
-	openEditor := c.openEditor
-	if openEditor == nil {
-		openEditor = launchEditor
-	}
-
-	edited, err := openEditor("", existing)
+	r, err := runForm(storage, cfg, date, existing)
 	if err != nil {
 		return err
 	}
 
-	if edited == existing {
-		fmt.Println("No changes made.")
-		return nil
+	if err := storage.SaveReportStruct(r); err != nil {
+		return err
 	}
 
-	if err := storage.SaveReport(edited, date); err != nil {
+	md := renderer.Markdown(r, questionsToRendererQuestions(cfg.Questions))
+	if err := storage.WriteSidecar(date, ".md", []byte(md)); err != nil {
 		return err
 	}
 
