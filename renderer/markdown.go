@@ -1,4 +1,3 @@
-// Package renderer は構造化スキーマ v1 の Report を Markdown に変換する純関数を提供する。
 package renderer
 
 import (
@@ -8,13 +7,11 @@ import (
 	"github.com/nurazon59/nippo/report"
 )
 
-// Question は表示に必要な最小情報を表す。
 type Question struct {
 	Key   string
 	Label string
 }
 
-// Markdown は Report と Questions から日報 Markdown を組み立てる。
 func Markdown(r *report.Report, questions []Question) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "# 日報 %s\n\n", r.Date.Format("2006-01-02"))
@@ -24,14 +21,11 @@ func Markdown(r *report.Report, questions []Question) string {
 	return buf.String()
 }
 
-// hasField は map にキーが存在するかを返す。
 func hasField(fields map[string]report.FieldValue, key string) bool {
 	_, ok := fields[key]
 	return ok
 }
 
-// writeSection は 1 つの質問に対応するセクションを書き出す。
-// missing は legacy GenerateMarkdown 互換のため `## label\n\n` を出す。
 func writeSection(buf *bytes.Buffer, q Question, v report.FieldValue, present bool) {
 	if !present {
 		fmt.Fprintf(buf, "## %s\n\n", q.Label)
@@ -46,12 +40,10 @@ func writeSection(buf *bytes.Buffer, q Question, v report.FieldValue, present bo
 			writeTask(buf, t)
 		}
 	default:
-		// unknown type の場合はヘッダのみ出す。
 		fmt.Fprintf(buf, "## %s\n", q.Label)
 	}
 }
 
-// writeTask は task_list の要素をフォーマットする。
 func writeTask(buf *bytes.Buffer, t report.Task) {
 	buf.WriteString("- ")
 	buf.WriteString(t.Title)
