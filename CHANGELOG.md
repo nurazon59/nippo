@@ -1,5 +1,8 @@
 # Changelog
 
+## [v0.2.1](https://github.com/nurazon59/nippo/compare/v0.2.0...v0.2.1) - 2026-05-21
+- feat(reference): 同日 reference 機能を追加 by @nurazon59 in https://github.com/nurazon59/nippo/pull/47
+
 ## [v0.2.0](https://github.com/nurazon59/nippo/compare/v0.1.0...v0.2.0) - 2026-05-20
 - refactor(storage): backends パッケージ抽出と ReportStorage IF 化 (PR-A) by @nurazon59 in https://github.com/nurazon59/nippo/pull/36
 - feat(backends): git/sqlite/multi バックエンド追加 (PR-B) by @nurazon59 in https://github.com/nurazon59/nippo/pull/37
