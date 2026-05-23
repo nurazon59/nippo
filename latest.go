@@ -28,7 +28,7 @@ func (c *latestCmd) Run() error {
 		return err
 	}
 
-	content, err := storage.LoadReport(date)
+	content, err := storage.LoadReportMarkdown(date, cfg.Questions)
 	if err != nil {
 		return err
 	}

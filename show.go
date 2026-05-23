@@ -28,7 +28,7 @@ func (c *showCmd) Run() error {
 	}
 	defer storage.Close()
 
-	content, err := storage.LoadReport(date)
+	content, err := storage.LoadReportMarkdown(date, cfg.Questions)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("no report found for %s", c.Date)

@@ -13,6 +13,8 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	shellquote "github.com/kballard/go-shellquote"
 	"golang.org/x/term"
+
+	"github.com/nurazon59/nippo/renderer"
 )
 
 var defaultEditor = "vim"
@@ -190,18 +192,29 @@ func (c *generateCmd) Run() error {
 	}
 	defer storage.Close()
 
-	report := &Report{Date: date, Fields: make(map[string]string)}
-	if err := c.runForm(storage, cfg, date, report); err != nil {
+	answers := make(map[string]string)
+	if err := c.runForm(storage, cfg, date, answers); err != nil {
 		return err
 	}
 
-	content := GenerateMarkdown(report, cfg.Questions)
-	fmt.Print(content)
+	r := newTextReport(date, answers)
+	if err := storage.SaveReportStruct(r); err != nil {
+		return err
+	}
 
-	return storage.SaveReport(content, date)
+	md := renderer.Markdown(r, questionsToRendererQuestions(cfg.Questions))
+	if err := storage.WriteSidecar(date, ".md", []byte(md)); err != nil {
+		return err
+	}
+
+	fmt.Print(md)
+	return nil
 }
 
-func (c *generateCmd) runForm(storage *Storage, cfg *Config, date time.Time, report *Report) error {
+// runForm はフォームを回し、回答を answers (string map) に詰める。
+// reference / hooks の preset 構築は string ベースのまま使い、
+// Step 5 ではフォーム層を構造化スキーマに合わせて書き換えない (Step 7/8 で本対応)。
+func (c *generateCmd) runForm(storage *Storage, cfg *Config, date time.Time, answers map[string]string) error {
 	presets, err := buildReferencePresets(storage, date, cfg.Questions)
 	if err != nil {
 		return err
@@ -212,7 +225,7 @@ func (c *generateCmd) runForm(storage *Storage, cfg *Config, date time.Time, rep
 
 	for _, q := range cfg.Questions {
 		editorContent := presets[q.Key]
-		if sameDay := buildSameDayPreset(report.Fields, q); sameDay != "" {
+		if sameDay := buildSameDayPreset(answers, q); sameDay != "" {
 			if editorContent != "" {
 				editorContent = editorContent + "\n\n" + sameDay
 			} else {
@@ -231,7 +244,7 @@ func (c *generateCmd) runForm(storage *Storage, cfg *Config, date time.Time, rep
 			}
 			return err
 		}
-		report.Fields[q.Key] = value
+		answers[q.Key] = value
 	}
 
 	options := []string{"Submit", "Cancel"}
