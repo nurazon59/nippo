@@ -1,7 +1,7 @@
 package main
 
 import (
-	"time"
+	"strings"
 
 	"github.com/nurazon59/nippo/renderer"
 	"github.com/nurazon59/nippo/report"
@@ -17,16 +17,32 @@ func questionsToRendererQuestions(qs []QuestionConfig) []renderer.Question {
 	return out
 }
 
-// newTextReport は 1 日分の構造化レポートを「全フィールド text 型」で初期化する。
-// Step 7 で task_list 型が入るまでの暫定 helper だが、generate.go の意図を宣言的に保つ目的で関数化する。
-func newTextReport(date time.Time, fields map[string]string) *report.Report {
-	r := &report.Report{
-		SchemaVersion: report.SupportedSchemaVersion,
-		Date:          date,
-		Fields:        make(map[string]report.FieldValue, len(fields)),
+// fieldBodyAsText は preset 用に FieldValue を平文化する。
+// reference / same-day reference は「過去内容を当日エディタの初期値として渡す」用途のため、
+// task_list は - title (time) outcome / thoughts の bullet 形式に変換する。
+func fieldBodyAsText(v report.FieldValue) string {
+	switch v.Type {
+	case report.FieldTypeText:
+		return v.Body
+	case report.FieldTypeTaskList:
+		if len(v.Tasks) == 0 {
+			return ""
+		}
+		var lines []string
+		for _, t := range v.Tasks {
+			head := "- " + t.Title
+			if t.Time != "" {
+				head += " (" + t.Time + ")"
+			}
+			if t.Outcome != "" {
+				head += " " + t.Outcome
+			}
+			lines = append(lines, head)
+			if t.Thoughts != "" {
+				lines = append(lines, "  "+t.Thoughts)
+			}
+		}
+		return strings.Join(lines, "\n")
 	}
-	for k, v := range fields {
-		r.Fields[k] = report.FieldValue{Type: report.FieldTypeText, Body: v}
-	}
-	return r
+	return ""
 }
