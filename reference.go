@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"strings"
 	"time"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 func commentOutPreset(content string) string {
@@ -46,15 +48,15 @@ func extractReportSections(content string) map[string]string {
 	return sections
 }
 
-func buildSameDayPreset(answered map[string]string, q QuestionConfig) string {
+func buildSameDayPreset(answered map[string]report.FieldValue, q QuestionConfig) string {
 	if q.SameDayReferenceKey == "" {
 		return ""
 	}
-	content, ok := answered[q.SameDayReferenceKey]
+	v, ok := answered[q.SameDayReferenceKey]
 	if !ok {
 		return ""
 	}
-	return commentOutPreset(content)
+	return commentOutPreset(fieldBodyAsText(v))
 }
 
 func buildReferencePresets(storage *Storage, date time.Time, questions []QuestionConfig) (map[string]string, error) {
@@ -66,7 +68,7 @@ func buildReferencePresets(storage *Storage, date time.Time, questions []Questio
 		return nil, err
 	}
 
-	previous, err := storage.LoadReport(prevDate)
+	previous, err := storage.LoadReportStruct(prevDate)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]string{}, nil
@@ -74,29 +76,23 @@ func buildReferencePresets(storage *Storage, date time.Time, questions []Questio
 		return nil, err
 	}
 
-	labelByKey := make(map[string]string, len(questions))
-	for _, q := range questions {
-		labelByKey[q.Key] = q.Label
-	}
-
-	sections := extractReportSections(previous)
 	presets := make(map[string]string)
 	for _, q := range questions {
 		if q.ReferenceKey == "" {
 			continue
 		}
 
-		refLabel, ok := labelByKey[q.ReferenceKey]
+		refField, ok := previous.Fields[q.ReferenceKey]
 		if !ok {
 			continue
 		}
 
-		content, ok := sections[refLabel]
-		if !ok {
+		body := fieldBodyAsText(refField)
+		if body == "" {
 			continue
 		}
 
-		preset := commentOutPreset(content)
+		preset := commentOutPreset(body)
 		if preset == "" {
 			continue
 		}

@@ -118,6 +118,49 @@ func TestConfigHookTimeoutValidation(t *testing.T) {
 	}
 }
 
+func TestConfigQuestionType(t *testing.T) {
+	tests := map[string]struct {
+		yaml     string
+		wantErr  bool
+		wantType map[int]string
+	}{
+		"type 省略は text 扱い (空文字を保持)": {
+			yaml:     "version: 1\nquestions:\n  - key: done\n    label: \"やった\"\n",
+			wantType: map[int]string{0: ""},
+		},
+		"text を明示指定できる": {
+			yaml:     "version: 1\nquestions:\n  - key: done\n    label: \"やった\"\n    type: text\n",
+			wantType: map[int]string{0: "text"},
+		},
+		"task_list を明示指定できる": {
+			yaml:     "version: 1\nquestions:\n  - key: done\n    label: \"やった\"\n    type: task_list\n",
+			wantType: map[int]string{0: "task_list"},
+		},
+		"未知の type は reject": {
+			yaml:    "version: 1\nquestions:\n  - key: done\n    label: \"やった\"\n    type: bogus\n",
+			wantErr: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "config.yaml")
+			require.NoError(t, os.WriteFile(path, []byte(tt.yaml), 0o644))
+
+			cfg, err := Load(path)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			for i, want := range tt.wantType {
+				assert.Equal(t, want, cfg.Questions[i].Type, "index=%d", i)
+			}
+		})
+	}
+}
+
 func TestConfigStorage(t *testing.T) {
 	tests := map[string]struct {
 		yaml   func(dir string) string
