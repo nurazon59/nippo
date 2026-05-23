@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"strings"
 	"time"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 func commentOutPreset(content string) string {
@@ -18,35 +20,6 @@ func commentOutPreset(content string) string {
 	return "<!--\n" + content + "\n-->"
 }
 
-func extractReportSections(content string) map[string]string {
-	sections := make(map[string]string)
-
-	var currentLabel string
-	var lines []string
-	flush := func() {
-		if currentLabel == "" {
-			return
-		}
-		sections[currentLabel] = strings.TrimRight(strings.Join(lines, "\n"), "\n")
-		lines = nil
-	}
-
-	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
-		if strings.HasPrefix(line, "## ") {
-			flush()
-			currentLabel = strings.TrimSpace(strings.TrimPrefix(line, "## "))
-			continue
-		}
-		if currentLabel == "" {
-			continue
-		}
-		lines = append(lines, line)
-	}
-
-	flush()
-	return sections
-}
-
 func buildSameDayPreset(answered map[string]string, q QuestionConfig) string {
 	if q.SameDayReferenceKey == "" {
 		return ""
@@ -58,6 +31,36 @@ func buildSameDayPreset(answered map[string]string, q QuestionConfig) string {
 	return commentOutPreset(content)
 }
 
+// fieldBodyAsText は preset 用に FieldValue を平文化する。
+// reference は「前日内容を当日エディタの初期値として渡す」用途のため、
+// task_list は - title (time) outcome / thoughts の bullet 形式に変換する。
+func fieldBodyAsText(v report.FieldValue) string {
+	switch v.Type {
+	case report.FieldTypeText:
+		return v.Body
+	case report.FieldTypeTaskList:
+		if len(v.Tasks) == 0 {
+			return ""
+		}
+		var lines []string
+		for _, t := range v.Tasks {
+			head := "- " + t.Title
+			if t.Time != "" {
+				head += " (" + t.Time + ")"
+			}
+			if t.Outcome != "" {
+				head += " " + t.Outcome
+			}
+			lines = append(lines, head)
+			if t.Thoughts != "" {
+				lines = append(lines, "  "+t.Thoughts)
+			}
+		}
+		return strings.Join(lines, "\n")
+	}
+	return ""
+}
+
 func buildReferencePresets(storage *Storage, date time.Time, questions []QuestionConfig) (map[string]string, error) {
 	prevDate, err := storage.LoadPreviousReport(date)
 	if err != nil {
@@ -67,7 +70,9 @@ func buildReferencePresets(storage *Storage, date time.Time, questions []Questio
 		return nil, err
 	}
 
-	previous, err := storage.LoadReport(prevDate)
+	// 旧形式 (.md のみ) の過去日報は構造化 reference の対象外。
+	// silent skip ではなく fs.ErrNotExist のみを許容し、他のエラーは伝搬する。
+	prev, err := storage.LoadReportStruct(prevDate)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return map[string]string{}, nil
@@ -75,29 +80,23 @@ func buildReferencePresets(storage *Storage, date time.Time, questions []Questio
 		return nil, err
 	}
 
-	labelByKey := make(map[string]string, len(questions))
-	for _, q := range questions {
-		labelByKey[q.Key] = q.Label
-	}
-
-	sections := extractReportSections(previous)
 	presets := make(map[string]string)
 	for _, q := range questions {
 		if q.ReferenceKey == "" {
 			continue
 		}
 
-		refLabel, ok := labelByKey[q.ReferenceKey]
+		refField, ok := prev.Fields[q.ReferenceKey]
 		if !ok {
 			continue
 		}
 
-		content, ok := sections[refLabel]
-		if !ok {
+		body := fieldBodyAsText(refField)
+		if body == "" {
 			continue
 		}
 
-		preset := commentOutPreset(content)
+		preset := commentOutPreset(body)
 		if preset == "" {
 			continue
 		}
