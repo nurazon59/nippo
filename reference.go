@@ -12,8 +12,7 @@ func commentOutPreset(content string) string {
 	if strings.TrimSpace(content) == "" {
 		return ""
 	}
-	// 内側の `-->` で外側コメントが閉じてしまう (CommonMark の HTML block type 2)
-	// のを防ぐため、終端マーカーのみ escape する
+	// 終端マーカーだけエスケープする
 	content = strings.ReplaceAll(content, "-->", "--&gt;")
 	return "<!--\n" + content + "\n-->"
 }
