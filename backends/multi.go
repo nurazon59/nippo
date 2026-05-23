@@ -157,8 +157,6 @@ func (m *MultiBackend) ListReports() ([]string, error) {
 	return merged, nil
 }
 
-// SaveReport は既存 Save と同じ fan-out パターンで全 backend に書き込みを試み、
-// 部分失敗時は PartialSaveError を返す。エラー集約ロジックは Save と完全に対称。
 func (m *MultiBackend) SaveReport(r *report.Report) error {
 	var (
 		succeeded []string
@@ -188,8 +186,6 @@ func (m *MultiBackend) SaveReport(r *report.Report) error {
 	return &PartialSaveError{Succeeded: succeeded, Failed: failed}
 }
 
-// LoadReportStruct は最初に成功した backend の結果を返す。
-// 全 backend が fs.ErrNotExist を返した場合のみ fs.ErrNotExist を返す (LoadReport と同パターン)。
 func (m *MultiBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
 	var lastErr error
 	allNotExist := true
@@ -209,7 +205,6 @@ func (m *MultiBackend) LoadReportStruct(date time.Time) (*report.Report, error) 
 	return nil, lastErr
 }
 
-// WriteSidecar は全 backend に fan-out。no-op backend (sqlite) を含む点は SaveReport と同じ。
 func (m *MultiBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
 	var (
 		succeeded []string

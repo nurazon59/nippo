@@ -216,7 +216,6 @@ func TestFilesystemBackend_Close(t *testing.T) {
 	require.NoError(t, b.Close())
 }
 
-// sampleReport は SaveReport / LoadReportStruct のラウンドトリップ検証で使う共通固定値。
 func sampleReport(t *testing.T, date string) *report.Report {
 	t.Helper()
 	return &report.Report{
@@ -251,7 +250,6 @@ func TestFilesystemBackend_SaveReportRoundTrip(t *testing.T) {
 
 			require.NoError(t, b.SaveReport(r))
 
-			// ファイルが想定パスに作成されていること
 			_, err := os.Stat(filepath.Join(dir, "nippo", tt.wantRel))
 			require.NoError(t, err)
 
@@ -322,8 +320,6 @@ func TestFilesystemBackend_WriteSidecar(t *testing.T) {
 	}
 }
 
-// 既存 Save (.md) と SaveReport (.yaml) が同居しても干渉しないことを確認する。
-// Step 5 で wiring を切り替えるまで両者は並走するため、共存検証は CLAUDE.md の互換要件。
 func TestFilesystemBackend_LegacyAndV1Coexist(t *testing.T) {
 	dir := t.TempDir()
 	b := NewFilesystemBackend(dir)

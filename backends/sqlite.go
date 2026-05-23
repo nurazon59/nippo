@@ -47,8 +47,6 @@ func NewSQLiteBackend(path string) (*SQLiteBackend, error) {
 		return nil, fmt.Errorf("sqlite backend: create table: %w", err)
 	}
 
-	// v1 構造化スキーマの保存先テーブル。.md と分離することで、Step 5 の wiring 切替前後で
-	// 旧テーブル (.md) を破壊せず双方を維持できる。
 	if _, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS reports_v1 (
 			date TEXT PRIMARY KEY,
@@ -148,8 +146,6 @@ func (b *SQLiteBackend) Close() error {
 	return b.db.Close()
 }
 
-// SaveReport は canonical YAML を reports_v1 に upsert する。
-// YAML を保存することで filesystem backend との一貫性 (同一フォーマット) を保つ。
 func (b *SQLiteBackend) SaveReport(r *report.Report) error {
 	if r == nil {
 		return fmt.Errorf("sqlite backend: report is nil")
@@ -167,8 +163,6 @@ func (b *SQLiteBackend) SaveReport(r *report.Report) error {
 	return err
 }
 
-// LoadReportStruct は reports_v1 から YAML を読み出して *report.Report に復元する。
-// 不在時は io/fs.ErrNotExist を返し、呼び出し側の errors.Is と整合させる。
 func (b *SQLiteBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
 	key := sqliteDateKey(date)
 	var content string
@@ -186,8 +180,6 @@ func (b *SQLiteBackend) LoadReportStruct(date time.Time) (*report.Report, error)
 	return &r, nil
 }
 
-// WriteSidecar は sqlite では no-op。
-// .md 等の派生物は filesystem / git backend が保存し、DB には canonical YAML だけ持つ設計。
 func (b *SQLiteBackend) WriteSidecar(_ time.Time, _ string, _ []byte) error {
 	return nil
 }

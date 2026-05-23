@@ -210,7 +210,6 @@ func TestSQLiteBackend_SaveReportRoundTrip(t *testing.T) {
 			require.NoError(t, b.SaveReport(r))
 
 			if tt.mutated {
-				// upsert で最新の Fields が反映されることを確認する。
 				r2 := sampleReport(t, tt.date)
 				r2.Fields["summary"] = report.FieldValue{Type: report.FieldTypeText, Body: "上書き"}
 				require.NoError(t, b.SaveReport(r2))
@@ -236,13 +235,11 @@ func TestSQLiteBackend_LoadReportStructMissing(t *testing.T) {
 	assert.True(t, errors.Is(err, fs.ErrNotExist))
 }
 
-// sqlite では sidecar は意図的に no-op。エラーを返さないことを宣言的に固定する。
 func TestSQLiteBackend_WriteSidecarIsNoop(t *testing.T) {
 	b := newTestSQLiteBackend(t)
 	require.NoError(t, b.WriteSidecar(mustDate(t, "2024-06-15"), ".md", []byte("# x")))
 }
 
-// 既存 reports テーブル (.md) と reports_v1 テーブル (.yaml) が干渉しないことを確認する。
 func TestSQLiteBackend_LegacyAndV1Coexist(t *testing.T) {
 	b := newTestSQLiteBackend(t)
 	date := mustDate(t, "2024-06-15")

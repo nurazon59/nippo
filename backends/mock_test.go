@@ -10,9 +10,6 @@ import (
 	"github.com/nurazon59/nippo/report"
 )
 
-// mockBackend は backends パッケージ内テスト専用のスタブ。
-// legacy (Save/LoadReport) と v1 (SaveReport/LoadReportStruct/WriteSidecar) を
-// 同じ instance で観測したいので、保存先 map を 3 つに分けている。
 type mockBackend struct {
 	mu              sync.Mutex
 	data            map[string]string
@@ -137,7 +134,6 @@ func (m *mockBackend) SaveReport(r *report.Report) error {
 	if m.saveReportErr != nil {
 		return m.saveReportErr
 	}
-	// deep copy までは要らないが、外部からの mutation を防ぐため value copy で保持する。
 	cp := *r
 	m.structData[normalizeReportDate(r.Date).Format("2006-01-02")] = &cp
 	return nil
@@ -170,7 +166,6 @@ func (m *mockBackend) WriteSidecar(date time.Time, kind string, content []byte) 
 		bucket = make(map[string][]byte)
 		m.sidecars[key] = bucket
 	}
-	// 呼び出し側が再利用するスライスを後から書き換える可能性を排除するため copy する。
 	buf := make([]byte, len(content))
 	copy(buf, content)
 	bucket[kind] = buf

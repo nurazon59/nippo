@@ -86,8 +86,6 @@ func (b *GitBackend) Save(content string, date time.Time) error {
 	return nil
 }
 
-// commitAndPush は absPath を git add 対象とし、ステージングに差分があれば commit / push する。
-// Step 3 で .yaml / .md / sidecar など複数種類のファイルを扱うためパス引数化した。
 func (b *GitBackend) commitAndPush(date time.Time, absPath string) error {
 	rel, err := filepath.Rel(b.localDir, absPath)
 	if err != nil {
@@ -141,8 +139,6 @@ func (b *GitBackend) Close() error {
 	return b.fs.Close()
 }
 
-// SaveReport は filesystem へ YAML を書き出した上で、当該 .yaml を git に commit する。
-// .md ではなく .yaml を add 対象にする必要があるため commitAndPush をパス引数化している。
 func (b *GitBackend) SaveReport(r *report.Report) error {
 	if r == nil {
 		return fmt.Errorf("git backend: report is nil")
@@ -159,13 +155,10 @@ func (b *GitBackend) SaveReport(r *report.Report) error {
 	return nil
 }
 
-// LoadReportStruct は filesystem 側に委譲する (git の操作は不要)。
 func (b *GitBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
 	return b.fs.LoadReportStruct(date)
 }
 
-// WriteSidecar は filesystem に書き出した上で、対応する sidecar ファイルを git に commit する。
-// SaveReport とは別 commit になる前提 (v1 では cmd 層から YAML と md を別途呼び出す)。
 func (b *GitBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
 	if err := b.fs.WriteSidecar(date, kind, content); err != nil {
 		return err

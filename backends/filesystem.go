@@ -14,11 +14,7 @@ import (
 	"github.com/nurazon59/nippo/report"
 )
 
-// ReportStorage は backend の抽象。
-// Step 3 では新規 v1 メソッド (SaveReport / LoadReportStruct / WriteSidecar) を
-// 既存の legacy メソッドに追加する形で導入し、Step 5 以降で wiring を切り替える。
 type ReportStorage interface {
-	// === 既存 (legacy: .md ベース) ===
 	Save(content string, date time.Time) error
 	LoadReport(date time.Time) (string, error)
 	LoadPreviousReport(date time.Time) (time.Time, error)
@@ -26,13 +22,8 @@ type ReportStorage interface {
 	ListReports() ([]string, error)
 	Close() error
 
-	// === 新規 (v1 structured: canonical YAML + sidecar) ===
-	// SaveReport は canonical YAML を永続化する。
 	SaveReport(r *report.Report) error
-	// LoadReportStruct は canonical YAML を *report.Report に復元する。
 	LoadReportStruct(date time.Time) (*report.Report, error)
-	// WriteSidecar は同日に紐づく副生成物 (例: .md) を保存する。
-	// kind は拡張子付き文字列 (e.g. ".md")。backend によっては no-op で良い。
 	WriteSidecar(date time.Time, kind string, content []byte) error
 }
 
@@ -52,14 +43,10 @@ func (b *FilesystemBackend) reportPath(date time.Time) string {
 	return filepath.Join(b.reportDir(date), date.Format("02")+".md")
 }
 
-// yamlReportPath は v1 canonical YAML の保存先。
-// .md の隣に YYYY/MM/DD.yaml で配置し、Step 4 以降で git backend からも参照する。
 func (b *FilesystemBackend) yamlReportPath(date time.Time) string {
 	return filepath.Join(b.reportDir(date), date.Format("02")+".yaml")
 }
 
-// sidecarPath は kind (例: ".md") を suffix として DD<kind> に解決する。
-// kind 先頭が "." でない場合も "." を補わずそのまま結合し、呼び出し側の意図を尊重する。
 func (b *FilesystemBackend) sidecarPath(date time.Time, kind string) string {
 	return filepath.Join(b.reportDir(date), date.Format("02")+kind)
 }
@@ -158,8 +145,6 @@ func (b *FilesystemBackend) Close() error {
 	return nil
 }
 
-// SaveReport は canonical YAML を YYYY/MM/DD.yaml に書き出す。
-// 既存 Save (.md) には影響しない (Step 5 で wiring を切り替えるまで共存)。
 func (b *FilesystemBackend) SaveReport(r *report.Report) error {
 	if r == nil {
 		return fmt.Errorf("filesystem backend: report is nil")
@@ -175,8 +160,6 @@ func (b *FilesystemBackend) SaveReport(r *report.Report) error {
 	return os.WriteFile(b.yamlReportPath(r.Date), buf, 0644)
 }
 
-// LoadReportStruct は YYYY/MM/DD.yaml を読み出し *report.Report に復元する。
-// 不在時は io/fs.ErrNotExist を errors.Is で検出できる形で返す。
 func (b *FilesystemBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
 	bytes, err := os.ReadFile(b.yamlReportPath(date))
 	if err != nil {
@@ -189,8 +172,6 @@ func (b *FilesystemBackend) LoadReportStruct(date time.Time) (*report.Report, er
 	return &r, nil
 }
 
-// WriteSidecar は kind を suffix としてファイルを書き出す。
-// 例: kind=".md" なら YYYY/MM/DD.md。canonical YAML と同じ階層に並べる。
 func (b *FilesystemBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
 	if kind == "" {
 		return fmt.Errorf("filesystem backend: sidecar kind is required")

@@ -185,7 +185,6 @@ func TestGitBackend_SaveReport(t *testing.T) {
 			b, dir := newTestGitBackend(t)
 			require.NoError(t, b.SaveReport(sampleReport(t, tt.date)))
 
-			// .yaml が git に commit されていること (working tree から消えても残るので追跡確認)
 			cmd := exec.Command("git", "ls-files", tt.wantRel)
 			cmd.Dir = dir
 			out, err := cmd.CombinedOutput()
@@ -225,12 +224,10 @@ func TestGitBackend_WriteSidecar(t *testing.T) {
 			b, dir := newTestGitBackend(t)
 			require.NoError(t, b.WriteSidecar(mustDate(t, tt.date), tt.kind, []byte(tt.content)))
 
-			// working tree のファイルが書き出されていること
 			got, err := os.ReadFile(filepath.Join(dir, tt.wantRel))
 			require.NoError(t, err)
 			assert.Equal(t, tt.content, string(got))
 
-			// git にも追跡されていること
 			cmd := exec.Command("git", "ls-files", tt.wantRel)
 			cmd.Dir = dir
 			out, err := cmd.CombinedOutput()
