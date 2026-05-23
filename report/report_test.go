@@ -12,8 +12,6 @@ import (
 	"github.com/nurazon59/nippo/report"
 )
 
-// TestUnmarshal は YAML → Report の変換を網羅的に検証する。
-// 既知の type を全て受け入れ、未知/欠落は明示的エラーを返すことを保証する。
 func TestUnmarshal(t *testing.T) {
 	tests := map[string]struct {
 		yaml          string
@@ -218,8 +216,6 @@ fields:
 	}
 }
 
-// TestRoundTrip は Marshal → Unmarshal で元と一致することを検証する。
-// FieldValue の type 別シリアライズが対称であることの保証が目的。
 func TestRoundTrip(t *testing.T) {
 	tests := map[string]*report.Report{
 		"basic text only": {
@@ -294,8 +290,6 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
-// TestMarshalShape は出力 YAML の構造を検証する。
-// type に応じて body / tasks のみが出ること、空フィールドが現れないことを担保する。
 func TestMarshalShape(t *testing.T) {
 	tests := map[string]struct {
 		input        *report.Report
@@ -358,8 +352,6 @@ func TestMarshalShape(t *testing.T) {
 	}
 }
 
-// TestMarshalRejectsInvalid は Marshal が silent fallback せず明示エラーで返すことを担保する。
-// SchemaVersion=0 (zero value) や zero Date を「書き出してしまう」と canonical ファイルが汚染される。
 func TestMarshalRejectsInvalid(t *testing.T) {
 	tests := map[string]struct {
 		input         *report.Report
@@ -389,6 +381,26 @@ func TestMarshalRejectsInvalid(t *testing.T) {
 			},
 			wantErrSubstr: "unsupported field type",
 		},
+		"text with tasks rejected": {
+			input: &report.Report{
+				SchemaVersion: 1,
+				Date:          time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC),
+				Fields: map[string]report.FieldValue{
+					"x": {Type: "text", Tasks: []report.Task{{Title: "oops"}}},
+				},
+			},
+			wantErrSubstr: "type=text must not contain tasks",
+		},
+		"task_list with body rejected": {
+			input: &report.Report{
+				SchemaVersion: 1,
+				Date:          time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC),
+				Fields: map[string]report.FieldValue{
+					"x": {Type: "task_list", Body: "oops"},
+				},
+			},
+			wantErrSubstr: "type=task_list must not contain body",
+		},
 	}
 
 	for name, tt := range tests {
@@ -400,7 +412,6 @@ func TestMarshalRejectsInvalid(t *testing.T) {
 	}
 }
 
-// TestDateFormat は date が常に YYYY-MM-DD で書き出されることを保証する。
 func TestDateFormat(t *testing.T) {
 	r := &report.Report{
 		SchemaVersion: 1,
@@ -411,7 +422,6 @@ func TestDateFormat(t *testing.T) {
 	require.NoError(t, err)
 	out := string(raw)
 	assert.True(t, strings.Contains(out, "2026-01-02"), "yaml:\n%s", out)
-	// 時刻成分が漏れていないこと
 	assert.NotContains(t, out, "15:04:05")
 	assert.NotContains(t, out, "T15")
 }
