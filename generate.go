@@ -32,6 +32,10 @@ type editorPrompt struct {
 	defaultValue  string
 	editorContent string
 	editorCommand string
+	// hasExisting は「既存値あり」のヒントを画面に出すかどうか。
+	// defaultValue を直接表示すると長文 (text の本文全体) でターミナルが埋まるため、
+	// 「(既存値あり)」の短いラベルで知らせる。
+	hasExisting bool
 }
 
 func (e *editorPrompt) prompt() (string, error) {
@@ -51,18 +55,20 @@ func (e *editorPrompt) prompt() (string, error) {
 		HelpInput: "?",
 	}
 
-	tmpl := `{{color .Config.Icons.Question.Format}}{{.Config.Icons.Question.Text}}{{color "reset"}} {{color "default+hb"}}{{.Message}}{{color "reset"}}{{if .Default}} {{color "white"}}({{.Default}}){{color "reset"}}{{end}} {{color "cyan"}}[(e) to launch {{.EditorName}}, enter to skip]{{color "reset"}} `
+	// hasExisting=true のときは「(既存値あり)」を表示し、enter で維持されることを示す。
+	// 既存値そのものを表示しないのは text 本文が長くなりがちで UI が破綻するため。
+	tmpl := `{{color .Config.Icons.Question.Format}}{{.Config.Icons.Question.Text}}{{color "reset"}} {{color "default+hb"}}{{.Message}}{{color "reset"}}{{if .HasExisting}} {{color "white"}}(既存値あり){{color "reset"}}{{end}} {{color "cyan"}}[(e) to launch {{.EditorName}}, enter to {{if .HasExisting}}keep{{else}}skip{{end}}]{{color "reset"}} `
 
 	data := struct {
-		Message    string
-		Default    string
-		EditorName string
-		Config     *survey.PromptConfig
+		Message     string
+		HasExisting bool
+		EditorName  string
+		Config      *survey.PromptConfig
 	}{
-		Message:    e.message,
-		Default:    e.defaultValue,
-		EditorName: editorName,
-		Config:     config,
+		Message:     e.message,
+		HasExisting: e.hasExisting,
+		EditorName:  editorName,
+		Config:      config,
 	}
 
 	out, _, err := core.RunTemplate(tmpl, data)
@@ -194,12 +200,8 @@ func (c *generateCmd) Run() error {
 	}
 	defer storage.Close()
 
-	r := &report.Report{
-		SchemaVersion: report.SupportedSchemaVersion,
-		Date:          date,
-		Fields:        make(map[string]report.FieldValue, len(cfg.Questions)),
-	}
-	if err := c.runForm(storage, cfg, r); err != nil {
+	r, err := runForm(storage, cfg, date, nil)
+	if err != nil {
 		return err
 	}
 
@@ -216,13 +218,19 @@ func (c *generateCmd) Run() error {
 	return nil
 }
 
-// runForm はフォームを回し、回答を r.Fields に直接詰める。
-// Step 7 で QuestionConfig.Type に応じて text / task_list 分岐をディスパッチする。
-// 受け取った r は呼び出し元で SaveReportStruct / Markdown 描画に使い回す前提。
-func (c *generateCmd) runForm(storage *Storage, cfg *Config, r *report.Report) error {
+// runForm はフォームを回し *report.Report を組み立てる generate / edit 共通エントリ。
+// initial が nil なら新規 (generate)、non-nil なら既存値を default として流し込む (edit フォーム再開モデル)。
+// 戻り値は呼び出し元で SaveReportStruct / Markdown 描画に使い回す前提。
+func runForm(storage *Storage, cfg *Config, date time.Time, initial *report.Report) (*report.Report, error) {
+	r := &report.Report{
+		SchemaVersion: report.SupportedSchemaVersion,
+		Date:          date,
+		Fields:        make(map[string]report.FieldValue, len(cfg.Questions)),
+	}
+
 	presets, err := buildReferencePresets(storage, r.Date, cfg.Questions)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	hookOut := RunHooks(context.Background(), cfg.Hooks, r.Date)
@@ -231,20 +239,22 @@ func (c *generateCmd) runForm(storage *Storage, cfg *Config, r *report.Report) e
 	for _, q := range cfg.Questions {
 		switch q.Type {
 		case "", "text":
-			value, err := promptText(q, presets[q.Key], r.Fields)
+			existing := existingTextBody(initial, q.Key)
+			value, err := promptText(q, presets[q.Key], r.Fields, existing)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			applyTextAnswer(r, q, value)
 		case "task_list":
-			tasks, err := promptTaskList(q)
+			existing := existingTasks(initial, q.Key)
+			tasks, err := promptTaskList(q, existing)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			applyTaskListAnswer(r, q, tasks)
 		default:
 			// config load 時に reject されるはずだが、defensive に明示エラー
-			return fmt.Errorf("unsupported question type %q (key=%s)", q.Type, q.Key)
+			return nil, fmt.Errorf("unsupported question type %q (key=%s)", q.Type, q.Key)
 		}
 	}
 
@@ -255,24 +265,48 @@ func (c *generateCmd) runForm(storage *Storage, cfg *Config, r *report.Report) e
 		Options: options,
 		Default: options[0],
 	}
-	err = survey.AskOne(selectPrompt, &next, survey.WithIcons(func(icons *survey.IconSet) {
+	if err := survey.AskOne(selectPrompt, &next, survey.WithIcons(func(icons *survey.IconSet) {
 		icons.Question.Text = "?"
 		icons.Question.Format = "green+hb"
 		icons.SelectFocus.Text = ">"
 		icons.SelectFocus.Format = "green"
-	}))
-	if err != nil {
-		if err == terminal.InterruptErr {
-			return err
-		}
-		return err
+	})); err != nil {
+		return nil, err
 	}
 
 	if next == "Cancel" {
-		return terminal.InterruptErr
+		return nil, terminal.InterruptErr
 	}
 
-	return nil
+	return r, nil
+}
+
+// existingTextBody は initial Report から指定 key の text body を取り出す helper。
+// initial=nil もしくは key 不在・型不一致は空文字を返す (新規扱い)。
+// text 型 field の Type 不一致は「以前 task_list で登録 → config で text に変更」のような
+// schema 編集ケースを silent fallback せず空扱いに統一する設計判断。
+func existingTextBody(initial *report.Report, key string) string {
+	if initial == nil {
+		return ""
+	}
+	v, ok := initial.Fields[key]
+	if !ok || v.Type != report.FieldTypeText {
+		return ""
+	}
+	return v.Body
+}
+
+// existingTasks は initial Report から指定 key の task_list を取り出す helper。
+// initial=nil もしくは key 不在・型不一致は nil を返し、呼び出し側で「新規」と同等に扱わせる。
+func existingTasks(initial *report.Report, key string) []report.Task {
+	if initial == nil {
+		return nil
+	}
+	v, ok := initial.Fields[key]
+	if !ok || v.Type != report.FieldTypeTaskList {
+		return nil
+	}
+	return v.Tasks
 }
 
 // applyTextAnswer は text 型の回答を r.Fields に書き込む。
@@ -291,29 +325,39 @@ func applyTaskListAnswer(r *report.Report, q QuestionConfig, tasks []report.Task
 }
 
 // promptText は text 型の 1 質問を editor prompt で取得する。
-// 同日 reference / hook preset を editor 初期値に合成して返す。
-func promptText(q QuestionConfig, refPreset string, answered map[string]report.FieldValue) (string, error) {
-	editorContent := refPreset
-	if sameDay := buildSameDayPreset(answered, q); sameDay != "" {
-		if editorContent != "" {
-			editorContent = editorContent + "\n\n" + sameDay
-		} else {
-			editorContent = sameDay
+// 優先順位: 既存値 (edit 再開) > 同日 reference + 前日 reference / hook preset。
+// 既存値が non-empty の場合、enter で「既存値維持」、e で「既存値を初期値にエディタ起動」になる。
+func promptText(q QuestionConfig, refPreset string, answered map[string]report.FieldValue, existing string) (string, error) {
+	editorContent := existing
+	if editorContent == "" {
+		editorContent = refPreset
+		if sameDay := buildSameDayPreset(answered, q); sameDay != "" {
+			if editorContent != "" {
+				editorContent = editorContent + "\n\n" + sameDay
+			} else {
+				editorContent = sameDay
+			}
 		}
 	}
 	prompt := &editorPrompt{
 		message:       q.Label,
-		defaultValue:  "",
+		defaultValue:  existing,
 		editorContent: editorContent,
+		hasExisting:   existing != "",
 	}
 	return prompt.prompt()
 }
 
 // promptTaskList は task_list 型の連続入力フォームを回す。
-// ユーザーがタスクを 1 件ずつ追加していき "Done" を選んだ時点で確定する。
+// existing が non-nil なら「既存タスクを維持したまま追記する」モード (edit フォーム再開)。
+// 編集 / 削除 UX は Step 8 では未提供で、追記のみサポート。本格的な編集は将来の拡張。
 // title 空のタスクは silent skip しない (明示的に Done を選ばせる方が UI 心理学的に混乱が少ない)。
-func promptTaskList(q QuestionConfig) ([]report.Task, error) {
-	var tasks []report.Task
+func promptTaskList(q QuestionConfig, existing []report.Task) ([]report.Task, error) {
+	tasks := append([]report.Task{}, existing...)
+	if len(tasks) > 0 {
+		// 既存タスク件数を明示することで「上書きされるのか追記なのか」の不安を取り除く。
+		fmt.Fprintf(os.Stderr, "%s: keeping %d existing task(s); add more or Done.\n", q.Label, len(tasks))
+	}
 	for {
 		t, err := promptSingleTask(q, len(tasks)+1)
 		if err != nil {
