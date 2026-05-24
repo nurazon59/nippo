@@ -1,5 +1,9 @@
 # Changelog
 
+## [v1.0.0](https://github.com/nurazon59/nippo/compare/v0.2.1...v1.0.0) - 2026-05-24
+- feat(report): 構造化スキーマ v1 の IR package を新設 (Step 1/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/49
+- feat(renderer): Markdown 出力を純関数として切り出し (Step 2/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/59
+
 ## [v0.2.1](https://github.com/nurazon59/nippo/compare/v0.2.0...v0.2.1) - 2026-05-21
 - feat(reference): 同日 reference 機能を追加 by @nurazon59 in https://github.com/nurazon59/nippo/pull/47
 
