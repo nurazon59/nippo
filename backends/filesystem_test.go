@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 func mustDate(t *testing.T, s string) time.Time {
@@ -212,4 +214,125 @@ func TestFilesystemBackend_LoadLatestReport(t *testing.T) {
 func TestFilesystemBackend_Close(t *testing.T) {
 	b := NewFilesystemBackend(t.TempDir())
 	require.NoError(t, b.Close())
+}
+
+func sampleReport(t *testing.T, date string) *report.Report {
+	t.Helper()
+	return &report.Report{
+		SchemaVersion: report.SupportedSchemaVersion,
+		Date:          mustDate(t, date),
+		Fields: map[string]report.FieldValue{
+			"summary": {Type: report.FieldTypeText, Body: "今日の振り返り"},
+			"tasks": {
+				Type: report.FieldTypeTaskList,
+				Tasks: []report.Task{
+					{Title: "実装", Time: "2h", Outcome: "完了"},
+				},
+			},
+		},
+	}
+}
+
+func TestFilesystemBackend_SaveReportRoundTrip(t *testing.T) {
+	tests := map[string]struct {
+		date    string
+		wantRel string
+	}{
+		"basic":    {date: "2024-06-15", wantRel: filepath.Join("2024", "06", "15.yaml")},
+		"year end": {date: "2024-12-31", wantRel: filepath.Join("2024", "12", "31.yaml")},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			b := NewFilesystemBackend(dir)
+			r := sampleReport(t, tt.date)
+
+			require.NoError(t, b.SaveReport(r))
+
+			_, err := os.Stat(filepath.Join(dir, "nippo", tt.wantRel))
+			require.NoError(t, err)
+
+			got, err := b.LoadReportStruct(mustDate(t, tt.date))
+			require.NoError(t, err)
+			assert.Equal(t, r.SchemaVersion, got.SchemaVersion)
+			assert.True(t, r.Date.Equal(got.Date), "date mismatch: want=%v got=%v", r.Date, got.Date)
+			assert.Equal(t, r.Fields, got.Fields)
+		})
+	}
+}
+
+func TestFilesystemBackend_SaveReportRejectsNil(t *testing.T) {
+	b := NewFilesystemBackend(t.TempDir())
+	require.Error(t, b.SaveReport(nil))
+}
+
+func TestFilesystemBackend_LoadReportStructMissing(t *testing.T) {
+	b := NewFilesystemBackend(t.TempDir())
+	_, err := b.LoadReportStruct(mustDate(t, "2024-06-15"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, fs.ErrNotExist))
+}
+
+func TestFilesystemBackend_WriteSidecar(t *testing.T) {
+	tests := map[string]struct {
+		date    string
+		kind    string
+		content string
+		wantRel string
+		wantErr bool
+	}{
+		"markdown sidecar": {
+			date:    "2024-06-15",
+			kind:    ".md",
+			content: "# nippo",
+			wantRel: filepath.Join("2024", "06", "15.md"),
+		},
+		"html sidecar": {
+			date:    "2024-07-01",
+			kind:    ".html",
+			content: "<h1>x</h1>",
+			wantRel: filepath.Join("2024", "07", "01.html"),
+		},
+		"empty kind errors": {
+			date:    "2024-06-15",
+			kind:    "",
+			wantErr: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			b := NewFilesystemBackend(dir)
+
+			err := b.WriteSidecar(mustDate(t, tt.date), tt.kind, []byte(tt.content))
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			got, err := os.ReadFile(filepath.Join(dir, "nippo", tt.wantRel))
+			require.NoError(t, err)
+			assert.Equal(t, tt.content, string(got))
+		})
+	}
+}
+
+func TestFilesystemBackend_LegacyAndV1Coexist(t *testing.T) {
+	dir := t.TempDir()
+	b := NewFilesystemBackend(dir)
+	date := mustDate(t, "2024-06-15")
+
+	require.NoError(t, b.Save("# legacy md", date))
+	require.NoError(t, b.SaveReport(sampleReport(t, "2024-06-15")))
+
+	gotMD, err := b.LoadReport(date)
+	require.NoError(t, err)
+	assert.Equal(t, "# legacy md", gotMD)
+
+	gotR, err := b.LoadReportStruct(date)
+	require.NoError(t, err)
+	assert.Equal(t, report.SupportedSchemaVersion, gotR.SchemaVersion)
 }

@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"sort"
 	"time"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 type NamedBackend struct {
@@ -153,6 +155,83 @@ func (m *MultiBackend) ListReports() ([]string, error) {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(merged)))
 	return merged, nil
+}
+
+func (m *MultiBackend) SaveReport(r *report.Report) error {
+	var (
+		succeeded []string
+		failed    []*BackendError
+	)
+	for _, nb := range m.backends {
+		err := nb.Backend.SaveReport(r)
+		if err == nil {
+			succeeded = append(succeeded, nb.Name)
+			continue
+		}
+		if pe, ok := asPartial(err); ok {
+			for _, s := range pe.Succeeded {
+				succeeded = append(succeeded, nb.Name+"."+s)
+			}
+			for _, f := range pe.Failed {
+				failed = append(failed, &BackendError{Name: nb.Name + "." + f.Name, Err: f.Err})
+			}
+			continue
+		}
+		failed = append(failed, &BackendError{Name: nb.Name, Err: err})
+	}
+
+	if len(failed) == 0 {
+		return nil
+	}
+	return &PartialSaveError{Succeeded: succeeded, Failed: failed}
+}
+
+func (m *MultiBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
+	var lastErr error
+	allNotExist := true
+	for _, nb := range m.backends {
+		r, err := nb.Backend.LoadReportStruct(date)
+		if err == nil {
+			return r, nil
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			allNotExist = false
+		}
+		lastErr = err
+	}
+	if allNotExist {
+		return nil, fs.ErrNotExist
+	}
+	return nil, lastErr
+}
+
+func (m *MultiBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
+	var (
+		succeeded []string
+		failed    []*BackendError
+	)
+	for _, nb := range m.backends {
+		err := nb.Backend.WriteSidecar(date, kind, content)
+		if err == nil {
+			succeeded = append(succeeded, nb.Name)
+			continue
+		}
+		if pe, ok := asPartial(err); ok {
+			for _, s := range pe.Succeeded {
+				succeeded = append(succeeded, nb.Name+"."+s)
+			}
+			for _, f := range pe.Failed {
+				failed = append(failed, &BackendError{Name: nb.Name + "." + f.Name, Err: f.Err})
+			}
+			continue
+		}
+		failed = append(failed, &BackendError{Name: nb.Name, Err: err})
+	}
+
+	if len(failed) == 0 {
+		return nil
+	}
+	return &PartialSaveError{Succeeded: succeeded, Failed: failed}
 }
 
 func (m *MultiBackend) Close() error {

@@ -10,7 +10,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	_ "modernc.org/sqlite"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 type SQLiteBackend struct {
@@ -42,6 +45,17 @@ func NewSQLiteBackend(path string) (*SQLiteBackend, error) {
 	`); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("sqlite backend: create table: %w", err)
+	}
+
+	if _, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS reports_v1 (
+			date TEXT PRIMARY KEY,
+			yaml TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)
+	`); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("sqlite backend: create reports_v1 table: %w", err)
 	}
 
 	return &SQLiteBackend{db: db, path: path}, nil
@@ -130,4 +144,42 @@ func (b *SQLiteBackend) ListReports() ([]string, error) {
 
 func (b *SQLiteBackend) Close() error {
 	return b.db.Close()
+}
+
+func (b *SQLiteBackend) SaveReport(r *report.Report) error {
+	if r == nil {
+		return fmt.Errorf("sqlite backend: report is nil")
+	}
+	buf, err := yaml.Marshal(r)
+	if err != nil {
+		return fmt.Errorf("sqlite backend: marshal yaml: %w", err)
+	}
+	key := sqliteDateKey(r.Date)
+	_, err = b.db.Exec(
+		`INSERT INTO reports_v1(date, yaml, updated_at) VALUES(?, ?, ?)
+		 ON CONFLICT(date) DO UPDATE SET yaml = excluded.yaml, updated_at = excluded.updated_at`,
+		key, string(buf), time.Now().Unix(),
+	)
+	return err
+}
+
+func (b *SQLiteBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
+	key := sqliteDateKey(date)
+	var content string
+	err := b.db.QueryRow(`SELECT yaml FROM reports_v1 WHERE date = ?`, key).Scan(&content)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fs.ErrNotExist
+		}
+		return nil, err
+	}
+	var r report.Report
+	if err := yaml.Unmarshal([]byte(content), &r); err != nil {
+		return nil, fmt.Errorf("sqlite backend: unmarshal yaml: %w", err)
+	}
+	return &r, nil
+}
+
+func (b *SQLiteBackend) WriteSidecar(_ time.Time, _ string, _ []byte) error {
+	return nil
 }

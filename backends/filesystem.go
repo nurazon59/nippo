@@ -1,12 +1,17 @@
 package backends
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/goccy/go-yaml"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 type ReportStorage interface {
@@ -16,6 +21,10 @@ type ReportStorage interface {
 	LoadLatestReport() (time.Time, error)
 	ListReports() ([]string, error)
 	Close() error
+
+	SaveReport(r *report.Report) error
+	LoadReportStruct(date time.Time) (*report.Report, error)
+	WriteSidecar(date time.Time, kind string, content []byte) error
 }
 
 type FilesystemBackend struct {
@@ -32,6 +41,14 @@ func (b *FilesystemBackend) reportDir(date time.Time) string {
 
 func (b *FilesystemBackend) reportPath(date time.Time) string {
 	return filepath.Join(b.reportDir(date), date.Format("02")+".md")
+}
+
+func (b *FilesystemBackend) yamlReportPath(date time.Time) string {
+	return filepath.Join(b.reportDir(date), date.Format("02")+".yaml")
+}
+
+func (b *FilesystemBackend) sidecarPath(date time.Time, kind string) string {
+	return filepath.Join(b.reportDir(date), date.Format("02")+kind)
 }
 
 func (b *FilesystemBackend) Save(content string, date time.Time) error {
@@ -126,4 +143,42 @@ func (b *FilesystemBackend) ListReports() ([]string, error) {
 
 func (b *FilesystemBackend) Close() error {
 	return nil
+}
+
+func (b *FilesystemBackend) SaveReport(r *report.Report) error {
+	if r == nil {
+		return fmt.Errorf("filesystem backend: report is nil")
+	}
+	buf, err := yaml.Marshal(r)
+	if err != nil {
+		return fmt.Errorf("filesystem backend: marshal yaml: %w", err)
+	}
+	dir := b.reportDir(r.Date)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(b.yamlReportPath(r.Date), buf, 0644)
+}
+
+func (b *FilesystemBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
+	bytes, err := os.ReadFile(b.yamlReportPath(date))
+	if err != nil {
+		return nil, err
+	}
+	var r report.Report
+	if err := yaml.Unmarshal(bytes, &r); err != nil {
+		return nil, fmt.Errorf("filesystem backend: unmarshal yaml: %w", err)
+	}
+	return &r, nil
+}
+
+func (b *FilesystemBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
+	if kind == "" {
+		return fmt.Errorf("filesystem backend: sidecar kind is required")
+	}
+	dir := b.reportDir(date)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(b.sidecarPath(date, kind), content, 0644)
 }
