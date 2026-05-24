@@ -16,13 +16,13 @@ func Markdown(r *report.Report, questions []Question) string {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "# 日報 %s\n\n", r.Date.Format("2006-01-02"))
 	for _, q := range questions {
-		v, ok := r.Fields[q.Key]
-		writeSection(&buf, q, v, ok)
+		writeSection(&buf, q, r.Fields)
 	}
 	return buf.String()
 }
 
-func writeSection(buf *bytes.Buffer, q Question, v report.FieldValue, present bool) {
+func writeSection(buf *bytes.Buffer, q Question, fields map[string]report.FieldValue) {
+	v, present := fields[q.Key]
 	if !present {
 		fmt.Fprintf(buf, "## %s\n\n", q.Label)
 		return
