@@ -16,6 +16,7 @@ var CLI struct {
 	Show       showCmd       `cmd:"" help:"Show report for a specific date."`
 	Latest     latestCmd     `cmd:"" help:"Show the most recently dated report."`
 	Edit       editCmd       `cmd:"" help:"Edit report for a specific date."`
+	Migrate    migrateCmd    `cmd:"" help:"Migrate legacy .md reports to canonical .yaml (default: dry-run)."`
 	Completion completionCmd `cmd:"" help:"Generate shell completion script."`
 }
 
