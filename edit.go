@@ -27,6 +27,8 @@ func (c *editCmd) Run() error {
 	}
 	defer storage.Close()
 
+	// TODO(Step 8): edit はフォーム再開モデルに置き換えるまで legacy .md パスを編集する。
+	// .yaml と .md の同期は Step 8 で本対応。
 	existing, err := storage.LoadReport(date)
 	if err != nil {
 		return fmt.Errorf("report not found for %s: %w", c.Date, err)
