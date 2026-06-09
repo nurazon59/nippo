@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 type GitBackend struct {
@@ -75,7 +77,7 @@ func (b *GitBackend) Save(content string, date time.Time) error {
 	if err := b.fs.Save(content, date); err != nil {
 		return err
 	}
-	if err := b.commitAndPush(date); err != nil {
+	if err := b.commitAndPush(date, b.fs.reportPath(date)); err != nil {
 		return &PartialSaveError{
 			Succeeded: []string{"filesystem"},
 			Failed:    []*BackendError{{Name: "git", Err: err}},
@@ -84,8 +86,8 @@ func (b *GitBackend) Save(content string, date time.Time) error {
 	return nil
 }
 
-func (b *GitBackend) commitAndPush(date time.Time) error {
-	rel, err := filepath.Rel(b.localDir, b.fs.reportPath(date))
+func (b *GitBackend) commitAndPush(date time.Time, absPath string) error {
+	rel, err := filepath.Rel(b.localDir, absPath)
 	if err != nil {
 		return fmt.Errorf("rel path: %w", err)
 	}
@@ -135,4 +137,37 @@ func (b *GitBackend) ListReports() ([]string, error) {
 
 func (b *GitBackend) Close() error {
 	return b.fs.Close()
+}
+
+func (b *GitBackend) SaveReport(r *report.Report) error {
+	if r == nil {
+		return fmt.Errorf("git backend: report is nil")
+	}
+	if err := b.fs.SaveReport(r); err != nil {
+		return err
+	}
+	if err := b.commitAndPush(r.Date, b.fs.yamlReportPath(r.Date)); err != nil {
+		return &PartialSaveError{
+			Succeeded: []string{"filesystem"},
+			Failed:    []*BackendError{{Name: "git", Err: err}},
+		}
+	}
+	return nil
+}
+
+func (b *GitBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
+	return b.fs.LoadReportStruct(date)
+}
+
+func (b *GitBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
+	if err := b.fs.WriteSidecar(date, kind, content); err != nil {
+		return err
+	}
+	if err := b.commitAndPush(date, b.fs.sidecarPath(date, kind)); err != nil {
+		return &PartialSaveError{
+			Succeeded: []string{"filesystem"},
+			Failed:    []*BackendError{{Name: "git", Err: err}},
+		}
+	}
+	return nil
 }

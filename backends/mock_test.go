@@ -6,21 +6,34 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 type mockBackend struct {
-	mu        sync.Mutex
-	data      map[string]string
-	saveErr   error
-	loadErr   error
-	listErr   error
-	closeErr  error
-	closed    bool
-	saveCalls int
+	mu              sync.Mutex
+	data            map[string]string
+	structData      map[string]*report.Report
+	sidecars        map[string]map[string][]byte
+	saveErr         error
+	loadErr         error
+	listErr         error
+	saveReportErr   error
+	loadStructErr   error
+	sidecarErr      error
+	closeErr        error
+	closed          bool
+	saveCalls       int
+	saveReportCalls int
+	sidecarCalls    int
 }
 
 func newMockBackend() *mockBackend {
-	return &mockBackend{data: make(map[string]string)}
+	return &mockBackend{
+		data:       make(map[string]string),
+		structData: make(map[string]*report.Report),
+		sidecars:   make(map[string]map[string][]byte),
+	}
 }
 
 func (m *mockBackend) Save(content string, date time.Time) error {
@@ -112,6 +125,51 @@ func (m *mockBackend) Close() error {
 	defer m.mu.Unlock()
 	m.closed = true
 	return m.closeErr
+}
+
+func (m *mockBackend) SaveReport(r *report.Report) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.saveReportCalls++
+	if m.saveReportErr != nil {
+		return m.saveReportErr
+	}
+	cp := *r
+	m.structData[normalizeReportDate(r.Date).Format("2006-01-02")] = &cp
+	return nil
+}
+
+func (m *mockBackend) LoadReportStruct(date time.Time) (*report.Report, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.loadStructErr != nil {
+		return nil, m.loadStructErr
+	}
+	v, ok := m.structData[normalizeReportDate(date).Format("2006-01-02")]
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+	cp := *v
+	return &cp, nil
+}
+
+func (m *mockBackend) WriteSidecar(date time.Time, kind string, content []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sidecarCalls++
+	if m.sidecarErr != nil {
+		return m.sidecarErr
+	}
+	key := normalizeReportDate(date).Format("2006-01-02")
+	bucket, ok := m.sidecars[key]
+	if !ok {
+		bucket = make(map[string][]byte)
+		m.sidecars[key] = bucket
+	}
+	buf := make([]byte, len(content))
+	copy(buf, content)
+	bucket[kind] = buf
+	return nil
 }
 
 var errMockBoom = errors.New("mock boom")

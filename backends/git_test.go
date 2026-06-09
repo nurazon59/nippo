@@ -3,6 +3,7 @@ package backends
 import (
 	"errors"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nurazon59/nippo/report"
 )
 
 func skipIfNoGit(t *testing.T) {
@@ -160,6 +163,76 @@ func TestGitBackend_ListReports(t *testing.T) {
 			got, err := b.ListReports()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGitBackend_SaveReport(t *testing.T) {
+	tests := map[string]struct {
+		date      string
+		wantRel   string
+		wantCount string
+	}{
+		"creates yaml commit": {
+			date:      "2024-06-15",
+			wantRel:   filepath.Join("nippo", "2024", "06", "15.yaml"),
+			wantCount: "1\n",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, dir := newTestGitBackend(t)
+			require.NoError(t, b.SaveReport(sampleReport(t, tt.date)))
+
+			cmd := exec.Command("git", "ls-files", tt.wantRel)
+			cmd.Dir = dir
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err)
+			assert.True(t, strings.Contains(string(out), tt.wantRel), "ls-files should contain %s, got:\n%s", tt.wantRel, out)
+
+			cmd = exec.Command("git", "rev-list", "--count", "HEAD")
+			cmd.Dir = dir
+			out, err = cmd.CombinedOutput()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCount, string(out))
+
+			got, err := b.LoadReportStruct(mustDate(t, tt.date))
+			require.NoError(t, err)
+			assert.Equal(t, report.SupportedSchemaVersion, got.SchemaVersion)
+		})
+	}
+}
+
+func TestGitBackend_WriteSidecar(t *testing.T) {
+	tests := map[string]struct {
+		date    string
+		kind    string
+		content string
+		wantRel string
+	}{
+		"markdown sidecar gets committed": {
+			date:    "2024-06-15",
+			kind:    ".md",
+			content: "# nippo",
+			wantRel: filepath.Join("nippo", "2024", "06", "15.md"),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			b, dir := newTestGitBackend(t)
+			require.NoError(t, b.WriteSidecar(mustDate(t, tt.date), tt.kind, []byte(tt.content)))
+
+			got, err := os.ReadFile(filepath.Join(dir, tt.wantRel))
+			require.NoError(t, err)
+			assert.Equal(t, tt.content, string(got))
+
+			cmd := exec.Command("git", "ls-files", tt.wantRel)
+			cmd.Dir = dir
+			out, err := cmd.CombinedOutput()
+			require.NoError(t, err)
+			assert.True(t, strings.Contains(string(out), tt.wantRel))
 		})
 	}
 }
