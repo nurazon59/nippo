@@ -6,6 +6,7 @@
 set -uo pipefail
 
 TARGET_DATE="${1:-$(date -v-1d '+%Y-%m-%d')}"
+NEXT_DATE=$(date -j -f '%Y-%m-%d' "$TARGET_DATE" -v+1d '+%Y-%m-%d')
 
 # 起動した repo の org を判定（環境変数 NIPPO_ORG で上書き可）
 ORG="${NIPPO_ORG:-}"
@@ -33,9 +34,9 @@ is_bot() {
 echo "## GitHub PR アクティビティ（${TARGET_DATE} / ${ORG}）"
 echo ""
 
-prs=$(gh search prs --author "@me" --owner "$ORG" --updated ">=${TARGET_DATE}" --limit 50 \
+prs=$(gh search prs --author "@me" --owner "$ORG" --updated "${TARGET_DATE}..${NEXT_DATE}" --limit 50 \
   --json number,title,updatedAt,state,repository \
-  | jq -r '.[] | "\(.repository.nameWithOwner)\t\(.number)\t\(.state)\t\(.title)"' 2>/dev/null) || true
+  | jq -r '.[] | "\(.repository.nameWithOwner)\t\(.number)\t\(.state)\t\(.title)"')
 
 if [[ -z "$prs" ]]; then
   echo "対象 PR なし"
@@ -52,14 +53,20 @@ echo "### レビュー・コメント詳細"
 
 found_any=false
 while IFS=$'\t' read -r repo num _state title; do
-  # レビューを取得（ボット除外、日付フィルタ、bodyは先頭1行のみ）
-  reviews=$(gh pr view "$num" --repo "$repo" \
-    --jq ".reviews[] | select(.submittedAt >= \"${TARGET_DATE}\") | \"\(.author.login)\t\(.state)\t\(.body | split(\"\n\")[0] | .[0:100])\"" \
-    --json reviews 2>/dev/null) || true
+  # PR が削除・移動されている場合は 404 になりうる
+  if ! reviews=$(gh pr view "$num" --repo "$repo" \
+    --jq ".reviews[] | select(.submittedAt >= \"${TARGET_DATE}\" and .submittedAt < \"${NEXT_DATE}\") | \"\(.author.login)\t\(.state)\t\(.body | split(\"\n\")[0] | .[0:100])\"" \
+    --json reviews 2>&1); then
+    echo "警告: ${repo}#${num} のレビュー取得に失敗しました: ${reviews}" >&2
+    continue
+  fi
 
-  comments=$(gh pr view "$num" --repo "$repo" \
-    --jq ".comments[] | select(.createdAt >= \"${TARGET_DATE}\") | \"\(.author.login)\t\(.body | split(\"\n\")[0] | .[0:100])\"" \
-    --json comments 2>/dev/null) || true
+  if ! comments=$(gh pr view "$num" --repo "$repo" \
+    --jq ".comments[] | select(.createdAt >= \"${TARGET_DATE}\" and .createdAt < \"${NEXT_DATE}\") | \"\(.author.login)\t\(.body | split(\"\n\")[0] | .[0:100])\"" \
+    --json comments 2>&1); then
+    echo "警告: ${repo}#${num} のコメント取得に失敗しました: ${comments}" >&2
+    continue
+  fi
 
   # ボット行を除去
   human_reviews=""
