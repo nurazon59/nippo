@@ -6,7 +6,7 @@
 set -uo pipefail
 
 TARGET_DATE="${1:-$(date -v-1d '+%Y-%m-%d')}"
-NEXT_DATE=$(date -j -f '%Y-%m-%d' "$TARGET_DATE" -v+1d '+%Y-%m-%d')
+NEXT_DATE=$(date -j -v+1d -f '%Y-%m-%d' "$TARGET_DATE" '+%Y-%m-%d')
 
 # 起動した repo の org を判定（環境変数 NIPPO_ORG で上書き可）
 ORG="${NIPPO_ORG:-}"
