@@ -1,5 +1,20 @@
 # Changelog
 
+## [v1.0.0](https://github.com/nurazon59/nippo/compare/v0.2.1...v1.0.0) - 2026-06-18
+
+- feat(report): 構造化スキーマ v1 の IR package を新設 (Step 1/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/49
+- feat(renderer): Markdown 出力を純関数として切り出し (Step 2/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/59
+- feat(backends): ReportStorage に構造化保存メソッドを追加 (Step 3/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/51
+- test(backends): .yaml + .md sidecar 共存と冪等性を検証 (Step 4/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/61
+- feat(cmd): generate/show を構造化フローに接続 (Step 5/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/53
+- refactor(reference): 冗長なコメントを削除 (Step 6/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/62
+- feat(generate): QuestionConfig.Type と task_list フォームを追加 (Step 7/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/55
+- feat(edit): フォーム再開モデルに切替 (Step 8/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/56
+- feat(cmd): nippo migrate を実装 (Step 9/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/57
+- docs: 構造化スキーマ v1 と migrate コマンドを README に追記 (Step 10/10) by @nurazon59 in https://github.com/nurazon59/nippo/pull/60
+- feat(scripts): 日報データ収集スクリプトを追加 by @nurazon59 in https://github.com/nurazon59/nippo/pull/63
+- fix(scripts): macOS BSD date の引数順序を修正 by @nurazon59 in https://github.com/nurazon59/nippo/pull/64
+
 ## [v0.2.1](https://github.com/nurazon59/nippo/compare/v0.2.0...v0.2.1) - 2026-05-21
 - feat(reference): 同日 reference 機能を追加 by @nurazon59 in https://github.com/nurazon59/nippo/pull/47
 
