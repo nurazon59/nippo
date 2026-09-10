@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 指定日（デフォルト: 昨日）の Claude Code セッション内容を、起動した repo の org に限定して集約・出力する
+# 指定日（デフォルト: 昨日）の Claude Code / Codex セッション内容を、起動した repo の org に限定して集約・出力する
 # org は実行ディレクトリの git remote から判定する（work で personal を拾わないため）
 # 使い方: ./claude-daily-sessions.sh [YYYY-MM-DD]
 
@@ -70,3 +70,64 @@ while IFS= read -r f; do
   done <<< "$messages"
   echo ""
 done < <(find "$PROJECTS_DIR" -maxdepth 2 -path "*-github-com-${ORG}-*" -name "*.jsonl" | sort)
+
+CODEX_SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
+
+echo "## Codex セッション（${TARGET_DATE} / ${ORG}）"
+echo ""
+
+codex_found=false
+while IFS= read -r f; do
+  # session_meta の cwd / git.repository_url で org を判定し、user メッセージだけを抽出する。
+  jq_result=$(jq -r -s --arg date "$TARGET_DATE" --arg org "$ORG" '
+    first(.[] | select(.type == "session_meta") | .payload) as $meta
+    | ($meta.git.repository_url // "") as $origin
+    | select(
+        ($origin | contains("github.com/" + $org + "/")) or
+        ($origin | contains("github.com:" + $org + "/")) or
+        (($meta.cwd // "") | contains("/src/github.com/" + $org + "/"))
+      )
+    | ($origin | split("/") | last | sub("\\.git$"; "")) as $repo
+    | (if $repo != "" then $org + "/" + $repo else ($meta.cwd // "" | split("/") | last) end) as $project
+    | .[]
+    | select(
+        .type == "response_item" and
+        .payload.type == "message" and
+        .payload.role == "user" and
+        (.timestamp // "" | startswith($date))
+      )
+    | ([.payload.content[]? | select(.type == "input_text") | .text] | join("")) as $text
+    | select($text != "")
+    | select(($text | startswith("<environment_context>")) | not)
+    | [(.timestamp[11:16]), $project, $text]
+    | @tsv
+  ' "$f" 2>/dev/null) || true
+
+  [[ -z "$jq_result" ]] && continue
+
+  # Claude 側と同様、1ファイルを1セッションとして最大3行にまとめる。
+  file_time=$(printf '%s\n' "$jq_result" | head -1 | cut -f1)
+  project=$(printf '%s\n' "$jq_result" | head -1 | cut -f2)
+  messages=$(printf '%s\n' "$jq_result" \
+    | cut -f3- \
+    | sed '/^<environment_context>/,/<\/environment_context>/d' \
+    | sed '/^Base directory for this skill:/,$d' \
+    | sed '/^ARGUMENTS:/,$d' \
+    | sed '/^\[Request interrupted/d' \
+    | sed 's/^[[:space:]]*//' \
+    | grep -v '^$' \
+    | head -3) || true
+
+  [[ -z "$messages" ]] && continue
+
+  codex_found=true
+  echo "### ${file_time} — ${project}"
+  while IFS= read -r line; do
+    echo "- ${line:0:150}"
+  done <<< "$messages"
+  echo ""
+done < <(find "$CODEX_SESSIONS_DIR" -type f -name "*.jsonl" | sort)
+
+if [[ "$codex_found" == false ]]; then
+  echo "（対象セッションなし）"
+fi
