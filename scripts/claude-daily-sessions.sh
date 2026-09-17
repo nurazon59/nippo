@@ -1,14 +1,27 @@
 #!/usr/bin/env bash
-# 指定日（デフォルト: 昨日）の Claude Code / Codex セッション内容を、起動した repo の org に限定して集約・出力する
-# org は実行ディレクトリの git remote から判定する（work で personal を拾わないため）
+# 指定日の Claude Code / Codex セッションから、実際のユーザー入力を短く集約する。
+# org は実行ディレクトリの git remote から判定する（NIPPO_ORG で上書き可）。
 # 使い方: ./claude-daily-sessions.sh [YYYY-MM-DD]
 
-set -uo pipefail
+set -euo pipefail
 
-TARGET_DATE="${1:-$(date -v-1d '+%Y-%m-%d')}"
-PROJECTS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+UTC_OFFSET_SECONDS="${NIPPO_UTC_OFFSET_SECONDS:-32400}"
+if ! [[ "$UTC_OFFSET_SECONDS" =~ ^-?[0-9]+$ ]]; then
+  echo "NIPPO_UTC_OFFSET_SECONDS は整数で指定してください。" >&2
+  exit 1
+fi
 
-# 起動した repo の org を判定（環境変数 NIPPO_ORG で上書き可）
+shift_date() {
+  jq -nr --arg date "$1" --argjson delta "$2" \
+    '$date | strptime("%Y-%m-%d") | mktime + $delta | strftime("%Y-%m-%d")'
+}
+
+if [[ $# -ge 1 && -n "$1" ]]; then
+  TARGET_DATE="$1"
+else
+  TARGET_DATE=$(shift_date "$(date '+%Y-%m-%d')" -86400)
+fi
+
 ORG="${NIPPO_ORG:-}"
 if [[ -z "$ORG" ]]; then
   ORG=$(gh repo view --json owner --jq '.owner.login' 2>/dev/null) || true
@@ -21,112 +34,114 @@ if [[ -z "$ORG" ]]; then
   exit 1
 fi
 
+PROJECTS_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+CODEX_SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
+
+format_records() {
+  local records="$1"
+  local record
+
+  [[ -z "$records" ]] && return
+
+  while IFS= read -r record; do
+    echo "- $(jq -r '.text' <<< "$record")"
+  done <<< "$records"
+}
+
 echo "## Claude Code セッション（${TARGET_DATE} / ${ORG}）"
 echo ""
 
-while IFS= read -r f; do
-  # プロジェクト名: -Users-<user>-src-github-com-<org>-<repo> → <org>/<repo>
-  project=$(basename "$(dirname "$f")" \
-    | sed 's/^-Users-[^-]*-src-github-com-//' \
-    | sed 's/-/\//')  # 最初の - だけ / に置換
+if [[ -d "$PROJECTS_DIR" ]]; then
+  while IFS= read -r f; do
+    project=$(basename "$(dirname "$f")" \
+      | sed 's/^-Users-[^-]*-src-github-com-//' \
+      | sed 's/-/\//')
 
-  jq_result=$(jq -r --arg date "$TARGET_DATE" '
-    select(
-      .type == "user" and
-      (.timestamp // "" | startswith($date))
-    )
-    | [
-        (.timestamp[11:16]),  # "2026-04-03T09:32:25.978Z" → "09:32"
-        (
-          .message.content
-          | if type == "array" then (.[0] | select(.type == "text") | .text) // ""
-            elif type == "string" then .
-            else "" end
-        )
-      ]
-    | @tsv
-  ' "$f" 2>/dev/null) || true
+    records=$(jq -c \
+      --arg date "$TARGET_DATE" \
+      --argjson offset "$UTC_OFFSET_SECONDS" \
+      '
+        select(.type == "user" and (.timestamp // "") != "")
+        | ([
+             if (.message.content | type) == "array"
+             then (.message.content[]? | select(.type == "text") | .text)
+             else (.message.content // "")
+             end
+             | select(startswith("# AGENTS.md instructions") | not)
+             | select(startswith("<environment_context>") | not)
+             | select(startswith("<recommended_plugins>") | not)
+             | select(startswith("<turn_aborted>") | not)
+             | select(length > 0)
+           ] | join("\n")) as $text
+        | select($text != "")
+        | ((.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) + $offset) as $epoch
+        | select(($epoch | strftime("%Y-%m-%d")) == $date)
+        | {time: ($epoch | strftime("%H:%M")), text: ($text | gsub("[[:space:]]+"; " ") | .[0:160])}
+      ' "$f")
 
-  [[ -z "$jq_result" ]] && continue
+    [[ -z "$records" ]] && continue
 
-  # 最初のレコードの時刻を file_time に使う
-  file_time=$(printf '%s\n' "$jq_result" | head -1 | cut -f1)
-
-  messages=$(printf '%s\n' "$jq_result" \
-    | cut -f2- \
-    | sed '/^Base directory for this skill:/,$d' \
-    | sed '/^ARGUMENTS:/,$d' \
-    | sed '/<[a-z][a-z-]*/,/<\/[a-z]/d' \
-    | sed '/^\[Request interrupted/d' \
-    | sed 's/^[[:space:]]*//' \
-    | grep -v '^$' \
-    | head -3) || true
-
-  [[ -z "$messages" ]] && continue
-
-  echo "### ${file_time} — ${project}"
-  while IFS= read -r line; do
-    echo "- ${line:0:150}"
-  done <<< "$messages"
-  echo ""
-done < <(find "$PROJECTS_DIR" -maxdepth 2 -path "*-github-com-${ORG}-*" -name "*.jsonl" | sort)
-
-CODEX_SESSIONS_DIR="${CODEX_HOME:-$HOME/.codex}/sessions"
+    echo "### $(jq -r '.time' <<< "$records" | head -1) — ${project}"
+    format_records "$records" | sed -n '1,3p'
+    echo ""
+  done < <(find "$PROJECTS_DIR" -maxdepth 2 -path "*-github-com-${ORG}-*" -name "*.jsonl" -print 2>/dev/null | sort)
+fi
 
 echo "## Codex セッション（${TARGET_DATE} / ${ORG}）"
 echo ""
 
 codex_found=false
-while IFS= read -r f; do
-  # session_meta の cwd / git.repository_url で org を判定し、user メッセージだけを抽出する。
-  jq_result=$(jq -r -s --arg date "$TARGET_DATE" --arg org "$ORG" '
-    first(.[] | select(.type == "session_meta") | .payload) as $meta
-    | ($meta.git.repository_url // "") as $origin
-    | select(
-        ($origin | contains("github.com/" + $org + "/")) or
-        ($origin | contains("github.com:" + $org + "/")) or
-        (($meta.cwd // "") | contains("/src/github.com/" + $org + "/"))
-      )
-    | ($origin | split("/") | last | sub("\\.git$"; "")) as $repo
-    | (if $repo != "" then $org + "/" + $repo else ($meta.cwd // "" | split("/") | last) end) as $project
-    | .[]
-    | select(
-        .type == "response_item" and
-        .payload.type == "message" and
-        .payload.role == "user" and
-        (.timestamp // "" | startswith($date))
-      )
-    | ([.payload.content[]? | select(.type == "input_text") | .text] | join("")) as $text
-    | select($text != "")
-    | select(($text | startswith("<environment_context>")) | not)
-    | [(.timestamp[11:16]), $project, $text]
-    | @tsv
-  ' "$f" 2>/dev/null) || true
+if [[ -d "$CODEX_SESSIONS_DIR" ]]; then
+  while IFS= read -r f; do
+    records=$(jq -c -s \
+      --arg date "$TARGET_DATE" \
+      --arg org "$ORG" \
+      --argjson offset "$UTC_OFFSET_SECONDS" \
+      '
+        first(.[] | select(.type == "session_meta") | .payload) as $meta
+        | ($meta.git.repository_url // "") as $origin
+        | select(
+            ($origin | contains("github.com/" + $org + "/")) or
+            ($origin | contains("github.com:" + $org + "/")) or
+            (($meta.cwd // "") | contains("/src/github.com/" + $org + "/"))
+          )
+        | ($origin | split("/") | last | sub("\\.git$"; "")) as $repo
+        | (if $repo != "" then $org + "/" + $repo else ($meta.cwd // "" | split("/") | last) end) as $project
+        | [
+            .[]
+            | select(
+                .type == "response_item" and
+                .payload.type == "message" and
+                .payload.role == "user" and
+                (.timestamp // "") != ""
+              )
+            | ([
+                 .payload.content[]?
+                 | select(.type == "input_text")
+                 | .text
+                 | select(startswith("# AGENTS.md instructions") | not)
+                 | select(startswith("<environment_context>") | not)
+                 | select(startswith("<recommended_plugins>") | not)
+                 | select(startswith("<turn_aborted>") | not)
+                 | select(length > 0)
+               ] | join("\n")) as $text
+            | select($text != "")
+            | ((.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) + $offset) as $epoch
+            | select(($epoch | strftime("%Y-%m-%d")) == $date)
+            | {time: ($epoch | strftime("%H:%M")), project: $project, text: ($text | gsub("[[:space:]]+"; " ") | .[0:160])}
+          ]
+        | .[0:3][]
+      ' "$f")
 
-  [[ -z "$jq_result" ]] && continue
+    [[ -z "$records" ]] && continue
 
-  # Claude 側と同様、1ファイルを1セッションとして最大3行にまとめる。
-  file_time=$(printf '%s\n' "$jq_result" | head -1 | cut -f1)
-  project=$(printf '%s\n' "$jq_result" | head -1 | cut -f2)
-  messages=$(printf '%s\n' "$jq_result" \
-    | cut -f3- \
-    | sed '/^<environment_context>/,/<\/environment_context>/d' \
-    | sed '/^Base directory for this skill:/,$d' \
-    | sed '/^ARGUMENTS:/,$d' \
-    | sed '/^\[Request interrupted/d' \
-    | sed 's/^[[:space:]]*//' \
-    | grep -v '^$' \
-    | head -3) || true
-
-  [[ -z "$messages" ]] && continue
-
-  codex_found=true
-  echo "### ${file_time} — ${project}"
-  while IFS= read -r line; do
-    echo "- ${line:0:150}"
-  done <<< "$messages"
-  echo ""
-done < <(find "$CODEX_SESSIONS_DIR" -type f -name "*.jsonl" | sort)
+    codex_found=true
+    project=$(jq -r '.project' <<< "$records" | head -1)
+    echo "### $(jq -r '.time' <<< "$records" | head -1) — ${project}"
+    format_records "$records"
+    echo ""
+  done < <(find "$CODEX_SESSIONS_DIR" -type f -name "*.jsonl" -print 2>/dev/null | sort)
+fi
 
 if [[ "$codex_found" == false ]]; then
   echo "（対象セッションなし）"
