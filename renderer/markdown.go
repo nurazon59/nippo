@@ -3,6 +3,7 @@ package renderer
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/nurazon59/nippo/report"
 )
@@ -29,7 +30,11 @@ func writeSection(buf *bytes.Buffer, q Question, fields map[string]report.FieldV
 	}
 	switch v.Type {
 	case report.FieldTypeText:
-		fmt.Fprintf(buf, "## %s\n%s\n", q.Label, v.Body)
+		references, body := splitLeadingReferences(v.Body)
+		if references != "" {
+			fmt.Fprintf(buf, "%s\n\n", references)
+		}
+		fmt.Fprintf(buf, "## %s\n%s\n", q.Label, body)
 	case report.FieldTypeTaskList:
 		fmt.Fprintf(buf, "## %s\n", q.Label)
 		for _, t := range v.Tasks {
@@ -38,6 +43,26 @@ func writeSection(buf *bytes.Buffer, q Question, fields map[string]report.FieldV
 	default:
 		fmt.Fprintf(buf, "## %s\n", q.Label)
 	}
+}
+
+// splitLeadingReferences は先頭の参考コメントだけを切り出し、本文中のコメントを維持する。
+func splitLeadingReferences(body string) (string, string) {
+	end := 0
+	for {
+		rest := strings.TrimLeft(body[end:], " \t\r\n")
+		if !strings.HasPrefix(rest, "<!--") {
+			break
+		}
+		closeIndex := strings.Index(rest, "-->")
+		if closeIndex < 0 {
+			break
+		}
+		end = len(body) - len(rest) + closeIndex + len("-->")
+	}
+	if end == 0 {
+		return "", body
+	}
+	return body[:end], strings.TrimLeft(body[end:], "\r\n")
 }
 
 func writeTask(buf *bytes.Buffer, t report.Task) {
