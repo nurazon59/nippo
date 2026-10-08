@@ -236,3 +236,47 @@ func TestMarkdown(t *testing.T) {
 		})
 	}
 }
+
+func TestMarkdownReferenceBeforeHeading(t *testing.T) {
+	tests := map[string]struct {
+		body string
+		want string
+	}{
+		"hook の後に見出しと本文を置く": {
+			body: "<!--\nPR 一覧\n-->\n\n実装した",
+			want: "<!--\nPR 一覧\n-->\n\n## やった\n実装した\n",
+		},
+		"複数の参考情報を元の順序で見出しの前に置く": {
+			body: "<!--\n前日\n-->\n\n<!--\nPR 一覧\n-->\n\n実装した",
+			want: "<!--\n前日\n-->\n\n<!--\nPR 一覧\n-->\n\n## やった\n実装した\n",
+		},
+		"参考情報だけでも見出しを残す": {
+			body: "<!--\nPR 一覧\n-->",
+			want: "<!--\nPR 一覧\n-->\n\n## やった\n\n",
+		},
+		"本文中のコメントは移動しない": {
+			body: "実装した\n<!--\n補足\n-->",
+			want: "## やった\n実装した\n<!--\n補足\n-->\n",
+		},
+		"閉じていないコメントは移動しない": {
+			body: "<!--\n未完のコメント",
+			want: "## やった\n<!--\n未完のコメント\n",
+		},
+		"先頭の空白と改行があっても参考情報を検出する": {
+			body: "\r\n<!--\r\nPR 一覧\r\n-->\r\n\r\n実装した",
+			want: "\r\n<!--\r\nPR 一覧\r\n-->\n\n## やった\n実装した\n",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := &report.Report{
+				Date: time.Date(2026, 5, 23, 0, 0, 0, 0, time.UTC),
+				Fields: map[string]report.FieldValue{
+					"done": {Type: report.FieldTypeText, Body: tt.body},
+				},
+			}
+			got := renderer.Markdown(r, []renderer.Question{{Key: "done", Label: "やった"}})
+			assert.Equal(t, "# 日報 2026-05-23\n\n"+tt.want, got)
+		})
+	}
+}

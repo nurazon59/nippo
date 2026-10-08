@@ -125,6 +125,7 @@ nippo migrate --format json
 - `command` は `sh -c` で実行されるので、`|` や `$()` をそのまま使える
 - 環境変数 `NIPPO_DATE=YYYY-MM-DD` が hook プロセスに渡される（対象日に応じてクエリを組み立てられる）
 - `keys` に列挙した質問 key のエディタ画面に stdout が挿入される
+- Markdown 出力では、本文先頭の hook・参照コメントを `## やった` などの見出しより前に置き、見出しの直後から本文が始まる
 - `timeout` は Go の `time.ParseDuration` 形式（デフォルト `30s`）。タイムアウト・非 0 終了・コマンド未存在の場合は警告を stderr に出して generate 自体は続行する
 - hook は並列実行される
 
