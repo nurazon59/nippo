@@ -3,6 +3,7 @@ module github.com/nurazon59/nippo
 go 1.26.1
 
 require (
+	charm.land/bubbletea/v2 v2.1.0
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/adrg/xdg v0.5.3
 	github.com/alecthomas/kong v1.14.0
