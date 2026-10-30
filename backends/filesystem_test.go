@@ -379,7 +379,7 @@ func TestFilesystemBackend_SidecarCoexistence(t *testing.T) {
 			wantSidecar:    "# second",
 			wantListed:     []string{filepath.Join("2024", "06", "15.md")},
 		},
-		"json sidecar (non-md kind) coexists without polluting ListReports": {
+		"json sidecar does not add a second report entry": {
 			date: "2024-07-01",
 			writes: []struct {
 				kind    string
@@ -390,7 +390,7 @@ func TestFilesystemBackend_SidecarCoexistence(t *testing.T) {
 			wantYAMLRel:    filepath.Join("2024", "07", "01.yaml"),
 			wantSidecarRel: filepath.Join("2024", "07", "01.json"),
 			wantSidecar:    `{"ok":true}`,
-			wantListed:     nil,
+			wantListed:     []string{filepath.Join("2024", "07", "01.md")},
 		},
 	}
 
