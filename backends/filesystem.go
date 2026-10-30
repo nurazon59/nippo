@@ -142,7 +142,7 @@ func (b *FilesystemBackend) ListReports() ([]string, error) {
 		return nil, err
 	}
 
-	reports := make([]string, 0, len(seen))
+	var reports []string
 	for rel := range seen {
 		reports = append(reports, rel)
 	}
