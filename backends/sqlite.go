@@ -118,7 +118,7 @@ func (b *SQLiteBackend) LoadLatestReport() (time.Time, error) {
 }
 
 func (b *SQLiteBackend) ListReports() ([]string, error) {
-	rows, err := b.db.Query(`SELECT date FROM reports ORDER BY date DESC`)
+	rows, err := b.db.Query(`SELECT date FROM reports UNION SELECT date FROM reports_v1 ORDER BY date DESC`)
 	if err != nil {
 		return nil, err
 	}
