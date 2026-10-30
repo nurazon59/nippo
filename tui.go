@@ -62,7 +62,10 @@ type tuiModel struct {
 	status     string
 }
 
-type tuiEditorDone struct{ err error }
+type tuiEditorDone struct {
+	date string
+	err  error
+}
 
 func newTUIModel(store tuiReportStore, questions []QuestionConfig) tuiModel {
 	return tuiModel{store: store, questions: questions, width: 90, height: 24}
@@ -75,7 +78,7 @@ func (m tuiModel) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 	case tuiEditorDone:
-		if err := m.reload(m.selectedDate()); err != nil {
+		if err := m.reload(msg.date); err != nil {
 			m.status = "更新に失敗: " + err.Error()
 		} else if msg.err != nil {
 			m.status = "編集終了: " + msg.err.Error()
@@ -183,7 +186,7 @@ func (m tuiModel) edit(date time.Time) tea.Cmd {
 	}
 	args = append(args, "edit", date.Format("2006-01-02"))
 	return tea.ExecProcess(exec.Command(os.Args[0], args...), func(err error) tea.Msg {
-		return tuiEditorDone{err: err}
+		return tuiEditorDone{date: date.Format("2006-01-02"), err: err}
 	})
 }
 
