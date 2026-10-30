@@ -60,7 +60,7 @@ func TestTUIFiltering(t *testing.T) {
 	}{
 		"日付検索": {query: "2026-10-30", want: "2026-10-30", count: 1},
 		"本文検索は大文字小文字を無視": {query: "oauth", want: "2026-10-29", count: 1},
-		"該当なし": {query: "nothing", want: "", count: 0},
+		"該当なし":   {query: "nothing", want: "", count: 0},
 		"空文字は全件": {query: "", want: "2026-10-30", count: 2},
 	}
 	for name, tt := range tests {
@@ -91,7 +91,7 @@ func TestTUIReloadErrors(t *testing.T) {
 			store: fakeTUIStore{paths: []string{"2026/10/30.md"}, contents: map[string]string{"2026-10-30": "日報"}},
 		},
 		"ストレージのエラーを返す": {
-			store: fakeTUIStore{err: errors.New("failed")},
+			store:   fakeTUIStore{err: errors.New("failed")},
 			wantErr: true,
 		},
 	}
