@@ -275,7 +275,7 @@ func (m *tuiModel) ensureVisible() {
 		m.listTop = m.cursor
 	}
 	if m.cursor >= m.listTop+page {
-		m.listTop = m.cursor-page+1
+		m.listTop = m.cursor - page + 1
 	}
 }
 
@@ -304,9 +304,9 @@ func (m tuiModel) View() tea.View {
 }
 
 func (m tuiModel) mainView() string {
-	h := m.height-3
+	h := m.height - 3
 	leftWidth := min(28, max(20, m.width/3))
-	rightWidth := m.width-leftWidth-3
+	rightWidth := m.width - leftWidth - 3
 	lines := []string{fitTUI(fmt.Sprintf(" nippo  %d/%d 件", len(m.filtered), len(m.entries)), m.width)}
 	list := m.listLines(h, leftWidth)
 	preview := m.previewLines(h, max(1, rightWidth))
@@ -321,11 +321,11 @@ func (m tuiModel) mainView() string {
 			lines = append(lines, fitTUI(list[i], leftWidth)+" │ "+fitTUI(preview[i], rightWidth))
 		}
 	}
-	status := " "+m.status
+	status := " " + m.status
 	if m.searching {
-		status = " 検索: /"+m.query+"_"
+		status = " 検索: /" + m.query + "_"
 	} else if m.query != "" && m.status == "" {
-		status = " フィルタ: /"+m.query
+		status = " フィルタ: /" + m.query
 	}
 	lines = append(lines, fitTUI(status, m.width))
 	lines = append(lines, fitTUI(" j/k 移動  tab 切替  n 新規  e 編集  / 検索  r 再読込  ? ヘルプ  q 終了", m.width))
@@ -340,7 +340,7 @@ func (m tuiModel) listLines(height, width int) []string {
 		return lines
 	}
 	for row := 1; row < height; row++ {
-		index := m.listTop+row-1
+		index := m.listTop + row - 1
 		if index >= len(m.filtered) {
 			break
 		}
@@ -364,7 +364,7 @@ func (m tuiModel) previewLines(height, width int) []string {
 	lines[0] = entry.date.Format("2006-01-02") + "  プレビュー"
 	body := strings.Split(strings.ReplaceAll(entry.content, "\r\n", "\n"), "\n")
 	for row := 1; row < height; row++ {
-		index := m.previewTop+row-1
+		index := m.previewTop + row - 1
 		if index >= len(body) {
 			break
 		}
