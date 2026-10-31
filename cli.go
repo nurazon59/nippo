@@ -17,6 +17,7 @@ var CLI struct {
 	Latest     latestCmd     `cmd:"" help:"Show the most recently dated report."`
 	Edit       editCmd       `cmd:"" help:"Edit report for a specific date."`
 	Migrate    migrateCmd    `cmd:"" help:"Migrate legacy .md reports to canonical .yaml (default: dry-run)."`
+	Tui        tuiCmd        `cmd:"" help:"Browse and edit reports in a terminal UI."`
 	Completion completionCmd `cmd:"" help:"Generate shell completion script."`
 }
 

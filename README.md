@@ -177,3 +177,16 @@ task vet
 task ci
 task snapshot
 ```
+
+### TUI (Bubble Tea)
+
+`nippo tui` で日付一覧と Markdown プレビューを表示する。保存形式は既存の YAML 正本と Markdown sidecar を使用し、TUI はデータを直接変更しない。
+
+- `j/k` または矢印キー: 日付を選択。プレビュー選択中はスクロール
+- `tab`: 一覧とプレビューの切り替え
+- `n`: 今日の日報を作成・編集（既存の `nippo edit` フォーム）
+- `e` / `enter`: 選択中の日報を編集
+- `/`: 本文・日付を検索、`enter` で確定、`esc` で解除
+- `r`: 再読込、`?`: ヘルプ、`q`: 終了
+
+サポートするストレージは既存の `storage` 設定に従う。削除は行わず、canonical YAML と sidecar の整合性を維持する。

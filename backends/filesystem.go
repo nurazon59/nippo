@@ -116,13 +116,17 @@ func (b *FilesystemBackend) LoadLatestReport() (time.Time, error) {
 
 func (b *FilesystemBackend) ListReports() ([]string, error) {
 	base := filepath.Join(b.baseDir, "nippo")
-	var reports []string
+	seen := make(map[string]struct{})
 
 	err := filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() || !strings.HasSuffix(path, ".md") {
+		if info.IsDir() {
+			return nil
+		}
+		ext := filepath.Ext(path)
+		if ext != ".md" && ext != ".yaml" {
 			return nil
 		}
 
@@ -130,13 +134,18 @@ func (b *FilesystemBackend) ListReports() ([]string, error) {
 		if err != nil {
 			return err
 		}
-		reports = append(reports, rel)
+		// YAML 正本だけが存在する場合も一覧に含め、.md と重複させない。
+		seen[strings.TrimSuffix(rel, ext)+".md"] = struct{}{}
 		return nil
 	})
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
+	var reports []string
+	for rel := range seen {
+		reports = append(reports, rel)
+	}
 	sort.Sort(sort.Reverse(sort.StringSlice(reports)))
 	return reports, nil
 }
